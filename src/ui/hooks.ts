@@ -1,0 +1,45 @@
+import { useEffect, useState } from 'react';
+
+export function usePrefersReducedMotion(): boolean {
+  const query = '(prefers-reduced-motion: reduce)';
+  const [reduced, setReduced] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia?.(query).matches === true,
+  );
+  useEffect(() => {
+    const mql = window.matchMedia?.(query);
+    if (!mql) return;
+    const onChange = () => setReduced(mql.matches);
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, []);
+  return reduced;
+}
+
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName);
+}
+
+/** Global shortcuts: 1–9 trigger the nth action, R restarts. */
+export function useGameShortcuts(actionIds: readonly string[], onAct: (id: string) => void, onRestart: () => void) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.repeat || e.altKey || e.ctrlKey || e.metaKey || isTypingTarget(e.target)) return;
+      if (e.key === 'r' || e.key === 'R') {
+        e.preventDefault();
+        onRestart();
+        return;
+      }
+      const n = Number.parseInt(e.key, 10);
+      if (n >= 1 && n <= 9) {
+        const id = actionIds[n - 1];
+        if (id) {
+          e.preventDefault();
+          onAct(id);
+        }
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [actionIds, onAct, onRestart]);
+}

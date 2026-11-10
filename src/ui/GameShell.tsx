@@ -1,0 +1,170 @@
+import { useEffect, useMemo, useRef } from 'react';
+import type { LevelDefinition, SceneProps } from '../game/contracts';
+import { findAction, findPhase } from '../game/engine';
+import { useGame } from '../game/useGame';
+import { SceneHost } from '../scenes/SceneHost';
+import { ActionPanel } from './ActionPanel';
+import { INTENSITY_LABEL, OUTCOME_STATUS, UI } from './copy';
+import { describeLastTurn } from './feedback';
+import { useGameShortcuts, usePrefersReducedMotion } from './hooks';
+import { PatienceMeter } from './PatienceMeter';
+import { ResultPanel } from './ResultPanel';
+
+/** Generic level layout. Everything level-specific comes from `level`. */
+export function GameShell({ level }: { level: LevelDefinition }) {
+  const game = useGame(level);
+  const { state, phase, actions, intensity, progress, lastTurn, act, restart } = game;
+  const reducedMotion = usePrefersReducedMotion();
+  const consoleRef = useRef<HTMLElement>(null);
+
+  const actionIds = useMemo(() => actions.map((a) => a.id), [actions]);
+  useGameShortcuts(actionIds, act, restart);
+
+  // When the focused button disappears (phase change, restart), keep keyboard focus in the console.
+  useEffect(() => {
+    if (state.outcome) return; // ResultPanel focuses its own button.
+    const active = document.activeElement;
+    if (!active || active === document.body) {
+      consoleRef.current?.querySelector<HTMLButtonElement>('.btn--action')?.focus();
+    }
+  }, [state.phaseId, state.outcome, state.turns.length]);
+
+  const feedback = describeLastTurn(level, state);
+  const statusText = state.outcome ? OUTCOME_STATUS[state.outcome] : phase.title;
+  const sceneProps: SceneProps = {
+    cue: phase.cue,
+    outcome: state.outcome,
+    intensity,
+    patience: state.patience,
+    initialPatience: level.initialPatience,
+    turnCount: state.turns.length,
+    lastTurnHurt: (lastTurn?.patienceCost ?? 0) > 0,
+    reducedMotion,
+  };
+
+  return (
+    <div
+      className="app"
+      data-intensity={intensity}
+      data-outcome={state.outcome ?? undefined}
+      data-low-patience={state.patience === 1 || undefined}
+    >
+      <div className="window">
+        <header className="titlebar">
+          <span className="titlebar__icon" aria-hidden="true" />
+          <h1 className="titlebar__title">
+            <span className="titlebar__app">{UI.appName}</span>
+            <span className="titlebar__sep" aria-hidden="true">
+              ·
+            </span>
+            <span className="titlebar__level">{level.title}</span>
+          </h1>
+          <span className="titlebar__tag" data-intensity={intensity}>
+            {state.outcome ? '已结束' : INTENSITY_LABEL[intensity]}
+          </span>
+          <button
+            type="button"
+            className="btn btn--ghost btn--small titlebar__restart"
+            onClick={restart}
+            aria-keyshortcuts="R"
+          >
+            {UI.restartShort}
+          </button>
+        </header>
+
+        <div className="layout">
+          <section className="device" aria-label="打印机状态">
+            <SceneHost sceneId={level.sceneId} sceneProps={sceneProps} statusText={statusText} />
+            <dl className="statusbar">
+              <div className="statusbar__item statusbar__item--status">
+                <dt>{UI.status}</dt>
+                <dd>
+                  <span className="status-dot" aria-hidden="true" />
+                  {statusText}
+                </dd>
+              </div>
+              <div className="statusbar__item">
+                <dt>{UI.phase}</dt>
+                <dd>
+                  {progress.index} / {progress.total}
+                </dd>
+              </div>
+              <div className="statusbar__item">
+                <dt>{UI.patience}</dt>
+                <dd>
+                  {state.patience} / {level.initialPatience}
+                </dd>
+              </div>
+            </dl>
+          </section>
+
+          <main className="console" ref={consoleRef}>
+            <div className="panel objective">
+              <p className="objective__row">
+                <span className="panel__label">{UI.objective}</span>
+                <span className="objective__text">{level.objective}</span>
+              </p>
+              <PatienceMeter patience={state.patience} max={level.initialPatience} />
+            </div>
+
+            <section className="panel phase" aria-labelledby="phase-title" key={state.phaseId}>
+              <p className="phase__kicker">
+                <span>
+                  {UI.phase} {progress.index}/{progress.total}
+                </span>
+                <span className="phase__intensity">{state.outcome ? '已结束' : INTENSITY_LABEL[intensity]}</span>
+              </p>
+              <h2 id="phase-title" className="phase__title">
+                {phase.title}
+              </h2>
+              <p className="phase__desc">{phase.description}</p>
+            </section>
+
+            {state.outcome ? (
+              <ResultPanel
+                outcome={state.outcome}
+                ending={level.endings[state.outcome]}
+                patienceSpent={state.patienceSpent}
+                steps={state.turns.length}
+                onRestart={restart}
+              />
+            ) : (
+              <ActionPanel actions={actions} onAct={act} />
+            )}
+
+            <p className="feedback" data-tone={feedback?.tone ?? 'idle'} role="status" aria-live="polite">
+              {feedback?.text ?? UI.feedbackIdle}
+            </p>
+
+            <section className="panel log" aria-labelledby="log-heading">
+              <h2 id="log-heading" className="panel__label">
+                {UI.log}
+              </h2>
+              {state.turns.length === 0 ? (
+                <p className="log__empty">{UI.logEmpty}</p>
+              ) : (
+                <ol className="log__list">
+                  {state.turns.map((turn, i) => {
+                    const p = findPhase(level, turn.phaseId);
+                    const a = p && findAction(p, turn.actionId);
+                    return (
+                      <li key={i} className="log__item" data-hurt={turn.patienceCost > 0 || undefined}>
+                        <span className="log__index">{String(i + 1).padStart(2, '0')}</span>
+                        <span className="log__label">{a?.label ?? turn.actionId}</span>
+                        <span className="log__cost">
+                          {turn.patienceCost > 0 ? `耐心 −${turn.patienceCost}` : '—'}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ol>
+              )}
+            </section>
+
+            <p className="hint">{UI.keyboardHint}</p>
+          </main>
+        </div>
+      </div>
+    </div>
+  );
+}

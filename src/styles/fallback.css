@@ -1,0 +1,238 @@
+/* Simplified (non-WebGL) printer. State arrives as data-cue / data-outcome / data-intensity. */
+
+.fallback {
+  --fb-body: #e7e6e1;
+  --fb-edge: #9c9b95;
+  --fb-led: #8a8f98;
+  --fb-eye: #f5a524;
+  --fb-eye-h: 0px;
+  --fb-paper-y: -40px;
+  --fb-paper-rot: 0deg;
+  --fb-lid: 0deg;
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+
+.fallback[data-cue='queue'] {
+  --fb-led: #f5a524;
+  --fb-eye-h: 4px;
+}
+
+.fallback[data-cue='jam'] {
+  --fb-led: #e5484d;
+  --fb-eye: #ff3b3b;
+  --fb-eye-h: 9px;
+  --fb-paper-y: 18px;
+  --fb-paper-rot: 4deg;
+  --fb-lid: -10deg;
+}
+
+.fallback[data-outcome='perfect'] {
+  --fb-led: #30a46c;
+  --fb-eye-h: 0px;
+  --fb-paper-y: 64px;
+  --fb-paper-rot: 0deg;
+  --fb-lid: 0deg;
+}
+
+.fallback[data-outcome='normal'] {
+  --fb-led: #30a46c;
+  --fb-eye-h: 2px;
+  --fb-paper-y: 60px;
+  --fb-paper-rot: -9deg;
+  --fb-lid: 0deg;
+}
+
+.fallback[data-outcome='failure'] {
+  --fb-led: #3a1f20;
+  --fb-eye: #e5484d;
+  --fb-eye-h: 5px;
+  --fb-paper-y: -10px;
+  --fb-paper-rot: 2deg;
+  --fb-lid: 0deg;
+  filter: grayscale(0.6);
+}
+
+.fallback__device {
+  position: relative;
+  width: 220px;
+  height: 190px;
+}
+
+.fallback__device[data-jolt] {
+  animation: fb-jolt 420ms var(--ease-out);
+}
+
+.fallback__tray-in {
+  position: absolute;
+  left: 40px;
+  top: 0;
+  width: 130px;
+  height: 46px;
+}
+
+.fallback__tray-in span {
+  position: absolute;
+  inset: 0;
+  background: #fbfbf8;
+  border: 1px solid var(--fb-edge);
+  border-radius: 2px;
+}
+
+.fallback__tray-in span:nth-child(2) {
+  transform: translate(6px, 4px);
+}
+
+.fallback__tray-in span:nth-child(3) {
+  transform: translate(12px, 8px);
+}
+
+.fallback[data-cue='queue']:not([data-outcome]) .fallback__tray-in span {
+  animation: fb-bob 0.9s var(--ease-out) infinite alternate;
+}
+
+.fallback[data-cue='queue']:not([data-outcome]) .fallback__tray-in span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.fallback[data-cue='queue']:not([data-outcome]) .fallback__tray-in span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+.fallback__lid {
+  position: absolute;
+  left: 8px;
+  top: 40px;
+  width: 140px;
+  height: 12px;
+  background: #f1f0eb;
+  border: 1px solid var(--fb-edge);
+  border-radius: 3px 3px 0 0;
+  transform-origin: left bottom;
+  transform: rotate(var(--fb-lid));
+  transition: transform var(--dur-slow) var(--ease-out);
+  z-index: 2;
+}
+
+.fallback__body {
+  position: absolute;
+  left: 0;
+  top: 52px;
+  width: 220px;
+  height: 84px;
+  background: var(--fb-body);
+  border: 1px solid var(--fb-edge);
+  border-radius: 6px;
+  box-shadow: 0 10px 18px -12px rgb(0 0 0 / 0.5);
+  z-index: 1;
+}
+
+.fallback__eye {
+  position: absolute;
+  top: 16px;
+  width: 30px;
+  height: var(--fb-eye-h);
+  background: var(--fb-eye);
+  border-radius: 2px;
+  box-shadow: 0 0 10px var(--fb-eye);
+  transition: height var(--dur-med) var(--ease-out);
+}
+
+.fallback__eye--l {
+  left: 52px;
+  transform: rotate(14deg);
+}
+
+.fallback__eye--r {
+  left: 98px;
+  transform: rotate(-14deg);
+}
+
+.fallback__led {
+  position: absolute;
+  right: 18px;
+  top: 14px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--fb-led);
+  box-shadow: 0 0 8px var(--fb-led);
+}
+
+.fallback[data-cue='offline']:not([data-outcome]) .fallback__led {
+  animation: blink 1.6s steps(2) infinite;
+}
+.fallback[data-cue='queue']:not([data-outcome]) .fallback__led {
+  animation: blink 0.6s steps(2) infinite;
+}
+.fallback[data-cue='jam']:not([data-outcome]) .fallback__led {
+  animation: blink 0.2s steps(2) infinite;
+}
+.fallback[data-cue='jam']:not([data-outcome]) .fallback__device {
+  animation: shake 1.8s var(--ease-out) infinite;
+  --shake-amp: 1.5px;
+}
+
+.fallback__slot {
+  position: absolute;
+  left: 30px;
+  bottom: 22px;
+  width: 160px;
+  height: 6px;
+  background: #141416;
+  border-radius: 2px;
+}
+
+.fallback__paper {
+  position: absolute;
+  left: 60px;
+  top: 100px;
+  width: 100px;
+  height: 70px;
+  background: #fbfbf8;
+  border: 1px solid var(--fb-edge);
+  border-radius: 1px;
+  transform: translateY(var(--fb-paper-y)) rotate(var(--fb-paper-rot));
+  transition: transform var(--dur-slow) var(--ease-out);
+  z-index: 0;
+}
+
+.fallback[data-cue='jam']:not([data-outcome]) .fallback__paper,
+.fallback[data-outcome] .fallback__paper {
+  z-index: 3;
+}
+
+.fallback[data-cue='jam']:not([data-outcome]) .fallback__paper {
+  clip-path: polygon(0 0, 100% 0, 100% 55%, 82% 62%, 64% 52%, 40% 66%, 20% 54%, 0 62%);
+}
+
+.fallback__tray-out {
+  position: absolute;
+  left: 30px;
+  top: 172px;
+  width: 160px;
+  height: 8px;
+  background: #d6d5cf;
+  border: 1px solid var(--fb-edge);
+  border-radius: 2px;
+}
+
+@keyframes fb-bob {
+  to {
+    transform: translate(6px, -8px);
+  }
+}
+
+@keyframes fb-jolt {
+  20% {
+    transform: translateX(-6px) rotate(-1deg);
+  }
+  45% {
+    transform: translateX(5px) rotate(1deg);
+  }
+  70% {
+    transform: translateX(-2px);
+  }
+}
