@@ -14,7 +14,7 @@ An open-source browser game that turns everyday frustrations into boss fights.
 
 ### 当前状态
 
-第一个可运行版本：首关「地狱打印机」可完整游玩，尚未部署，也未经过真人试玩。
+第一个可运行版本：首关「地狱打印机」可完整游玩。已有浏览器回归测试与 CI；GitHub Pages 部署工作流已就绪，但尚未实际部署，也未经过真人试玩。
 
 **已实现并验证**
 
@@ -25,8 +25,10 @@ An open-source browser game that turns everyday frustrations into boss fights.
 - 界面随故障逐步异变（警示色、扫描线、轻微扭曲），尊重「减少动态效果」设置。
 - Three.js／React Three Fiber 几何体打印机，按场景注册表加载；WebGL 不可用、上下文丢失或手动切换时使用简化显示，游戏照常可玩。
 - 生产构建使用 GitHub Pages 子路径 `/dailyboss/`。
+- Playwright 浏览器测试（21 项）针对 `/dailyboss/` 下的生产构建运行，覆盖三种结局、键盘操作、真实 WebGL、上下文丢失、无 WebGL、手机横竖屏视口与减少动态效果。
+- 修复：手动切换「简化显示」时误报「3D 渲染中断」。
 
-**尚未完成**：真人试玩与数值调整（2–4 分钟目标）、结局分享、真机与横屏测试、仓库内的浏览器自动化测试、GitHub Pages 部署。详见 [开发路线](docs/ROADMAP.md)。
+**尚未完成**：真人试玩与数值调整（2–4 分钟目标）、结局分享、真机测试、动画人工验收、CI 在 GitHub 上的首次运行、GitHub Pages 实际部署（需仓库所有者启用，见下文）。详见 [开发路线](docs/ROADMAP.md)。
 
 ### 运行
 
@@ -40,9 +42,34 @@ npm test             # Vitest：规则、配置校验与反馈文案
 npm run build        # 类型检查 + 生产构建，输出到 dist/（base 为 /dailyboss/）
 npm run preview      # 预览构建结果，http://localhost:4173/dailyboss/
 npm run check        # 类型检查 + 测试 + 构建
+
+npx playwright install chromium   # 首次运行浏览器测试前安装 Chromium
+npm run test:e2e     # 生产构建 + Playwright 浏览器测试（/dailyboss/）
 ```
 
 调试参数：`?render=simple` 直接使用简化显示；`?level=<id>` 选择已登记的关卡（未知 ID 会显示配置错误页）。如需其他部署路径，可设置 `BASE_PATH=/其他路径/ npm run build`。
+
+### 自动化测试与 CI
+
+- `npm test`：Vitest 单元测试（`tests/`），规则、配置校验与反馈文案。
+- `npm run test:e2e`：先构建，再由 Playwright 启动 `vite preview`，在 `http://127.0.0.1:4173/dailyboss/` 上运行 `e2e/` 中的浏览器测试。`npm run test:e2e:prebuilt` 跳过构建，直接测试现有 `dist/`。
+- 标记为 `@webgl` 的测试需要真实 WebGL（无 GPU 时 Chromium 使用 SwiftShader 软件渲染）。环境不支持时这些测试会跳过并注明原因；设置 `E2E_REQUIRE_WEBGL=1` 则改为失败（CI 中已启用）。
+- 每个测试都会因意外的 `console.error`、页面异常或 `/dailyboss/` 下资源请求失败而失败。
+- 软件 WebGL 很耗 CPU，默认 2 个并行 worker，可用 `E2E_WORKERS` 调整。
+- GitHub Actions（`.github/workflows/ci.yml`）：在 Pull Request 和推送到 `main` 时，用 Node 24 和 `npm ci` 依次运行类型检查、单元测试、生产构建和浏览器测试；失败时上传 Playwright 报告。默认只读权限，不使用任何 secret。
+
+### 部署到 GitHub Pages
+
+推送到 `main`（或在 `main` 上手动运行 CI 工作流）且全部检查通过后，`deploy` 任务把**已测试的** `dist/` 发布到 GitHub Pages。Pull Request 永远不会部署。
+
+仓库所有者需要先完成一次设置：
+
+1. **Settings → Pages → Build and deployment → Source** 选择 **GitHub Actions**。
+2. 若 **Settings → Actions → General** 限制了可用的 Action，需允许 GitHub 官方 Action（`actions/*`）。
+3. 可选：在 **Settings → Environments → github-pages** 添加保护规则（如需人工批准）；部署任务会遵守这些规则。
+4. 合并到 `main`，或在 **Actions → CI → Run workflow** 中选择 `main` 运行。
+
+发布地址应为 `https://chenxuanyu-1216.github.io/dailyboss/`。私有仓库使用 Pages 可能需要付费方案；工作流不会更改仓库可见性。
 
 ### MVP 范围
 
@@ -81,6 +108,7 @@ npm run check        # 类型检查 + 测试 + 构建
 - useReducer + 纯函数规则执行器：统一游戏状态。
 - JSON：独立关卡内容，加载时校验。
 - Vitest：规则、配置与反馈测试。
+- Playwright：针对生产构建的浏览器测试；GitHub Actions 负责 CI 与 Pages 部署。
 
 ### 目录
 
@@ -91,13 +119,16 @@ npm run check        # 类型检查 + 测试 + 构建
 | `src/ui/` | 通用 DOM 界面组件与框架文案 |
 | `src/scenes/` | 场景白名单、3D 场景、简化显示 |
 | `src/styles/` | 设计变量与样式 |
-| `tests/` | Vitest 测试 |
+| `tests/` | Vitest 单元测试 |
+| `e2e/` | Playwright 浏览器测试 |
+| `.github/workflows/` | CI 与 Pages 部署 |
 
 ### 文档
 
 1. [核心架构与接口](docs/ARCHITECTURE.md)：固定边界和内容协议。
 2. [开发阶段与验收](docs/ROADMAP.md)：核心循环 → 完整关卡 → 3D 联动 → 体验与发布。
 3. [关卡配置](content/levels/printer-from-hell.json)：首关的实际运行配置。
+4. [试玩记录](docs/PLAYTEST.md)：试玩检查清单与结果模板。
 
 社区 JSON 关卡在 MVP 试玩验证后再推进。关卡中的行动、数值及具体文案是可调整的初始设计。
 
@@ -109,7 +140,7 @@ An absurd, browser-playable boss fight about everyday life. It starts as an ordi
 
 ### Status
 
-First runnable version. Level 1, "Printer From Hell" (地狱打印机), is fully playable. It has not been deployed or playtested with real players yet. The player-facing text is in Chinese.
+First runnable version. Level 1, "Printer From Hell" (地狱打印机), is fully playable. Browser regression tests and CI are in place, and a GitHub Pages deployment workflow is ready, but nothing has been deployed or playtested with real players yet. The player-facing text is in Chinese.
 
 **Implemented and verified**
 
@@ -120,8 +151,10 @@ First runnable version. Level 1, "Printer From Hell" (地狱打印机), is fully
 - The interface degrades step by step as faults escalate (warning colors, scanlines, slight distortion) and respects `prefers-reduced-motion`.
 - A primitive-geometry printer built with Three.js / React Three Fiber and loaded through a scene registry. A simplified DOM display takes over when WebGL is unavailable, when the context is lost, or when the player turns it on. The game stays fully playable either way.
 - Production builds use the GitHub Pages subpath `/dailyboss/`.
+- 21 Playwright browser tests run against the production build under `/dailyboss/`. They cover all three endings, keyboard play, real WebGL, context loss, no WebGL, mobile portrait and landscape viewports, and reduced motion.
+- Fixed: manually switching to the simplified display no longer reports a false "3D rendering interrupted" warning.
 
-**Not done yet:** playtesting and balance (2–4 minute target), sharing results, real-device and landscape testing, browser automation tests in the repo, and GitHub Pages deployment. See the [roadmap](docs/ROADMAP.md).
+**Not done yet:** playtesting and balance (2–4 minute target), sharing results, real-device testing, manual approval of the animations, the first CI run on GitHub, and the actual GitHub Pages deployment (needs owner setup, see below). See the [roadmap](docs/ROADMAP.md).
 
 ### Running it
 
@@ -135,9 +168,34 @@ npm test             # Vitest: rules, config validation, feedback text
 npm run build        # typecheck + production build into dist/ (base /dailyboss/)
 npm run preview      # serve the build at http://localhost:4173/dailyboss/
 npm run check        # typecheck + tests + build
+
+npx playwright install chromium   # once, before the first browser test run
+npm run test:e2e     # production build + Playwright browser tests (/dailyboss/)
 ```
 
 Debug parameters: `?render=simple` starts in the simplified display. `?level=<id>` picks a registered level; an unknown ID shows the config error page. To deploy under a different path, run `BASE_PATH=/other/ npm run build`.
+
+### Tests and CI
+
+- `npm test`: Vitest unit tests in `tests/` for rules, config validation and feedback text.
+- `npm run test:e2e`: builds, then Playwright starts `vite preview` and runs `e2e/` against `http://127.0.0.1:4173/dailyboss/`. `npm run test:e2e:prebuilt` skips the build and tests the existing `dist/`.
+- Tests tagged `@webgl` need real WebGL (SwiftShader software rendering in Chromium when there is no GPU). Without WebGL they skip with a reason. With `E2E_REQUIRE_WEBGL=1`, as set in CI, they fail instead.
+- Every test fails on an unexpected `console.error`, an uncaught page error, or a failed request for an app asset under `/dailyboss/`.
+- Software WebGL is CPU-heavy, so the suite uses 2 parallel workers by default. Change this with `E2E_WORKERS`.
+- GitHub Actions (`.github/workflows/ci.yml`) runs on pull requests and pushes to `main`. It uses Node 24 and `npm ci` to run the type check, unit tests, production build and browser tests, and uploads the Playwright report on failure. It runs with read-only permissions and uses no secrets.
+
+### Deploying to GitHub Pages
+
+After a push to `main` (or a manual run of the CI workflow on `main`) passes every check, the `deploy` job publishes the **tested** `dist/` to GitHub Pages. Pull requests are never deployed.
+
+One-time setup by the repository owner:
+
+1. **Settings → Pages → Build and deployment → Source**: choose **GitHub Actions**.
+2. If **Settings → Actions → General** restricts which actions may run, allow GitHub-authored actions (`actions/*`).
+3. Optional: add protection rules (such as required reviewers) under **Settings → Environments → github-pages**. The deploy job respects them.
+4. Merge to `main`, or run **Actions → CI → Run workflow** on `main`.
+
+The site should then be at `https://chenxuanyu-1216.github.io/dailyboss/`. Pages on a private repository may require a paid plan; the workflow never changes repository visibility.
 
 ### How it fits together
 

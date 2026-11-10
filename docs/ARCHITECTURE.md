@@ -38,7 +38,9 @@ React 派发用户事件；界面与场景消费同一份状态。动画完成�
 | content/levels/*.json | 阶段、行动、数值和文案 |
 | src/styles/tokens.css | 颜色、间距、字体、边框与动效变量 |
 | public/ | 静态资源（当前仅 favicon） |
-| tests/ | 配置、规则与浏览器流程验证 |
+| tests/ | Vitest：配置、规则与反馈验证 |
+| e2e/ | Playwright：针对生产构建（/dailyboss/）的浏览器流程验证 |
+| .github/workflows/ci.yml | CI 与 GitHub Pages 部署 |
 
 ## 内容协议
 
@@ -109,6 +111,7 @@ transition(level: LevelDefinition, state: GameState, event: GameEvent): GameStat
 - 离线、队列、卡纸和结局映射独立演出。
 - 场景卸载时释放几何体、材质、纹理和动画资源（JSX 创建的对象由 React Three Fiber 释放；手动创建的材质在组件卸载时 dispose）。
 - WebGL 不可用、资源失败或上下文丢失时显示简化场景，保留 DOM 行动和完整流程。
+- 实现说明：React Three Fiber 卸载渲染器时会调用 `forceContextLoss()`，触发真实的 `webglcontextlost` 事件。SceneCanvas 在自身的 layout effect 清理中先移除监听器，因此主动卸载（如切换简化显示）不会被误报为渲染故障，挂载期间的真实上下文丢失仍会触发降级。
 - 移动端限制像素比与特效数量，尊重减少动态效果偏好。性能预算在设备测试后确定。
 - 实现说明：Three.js 位于懒加载分包，加载期间显示简化场景；减少动态效果时按需渲染（frameloop="demand"）。
 
