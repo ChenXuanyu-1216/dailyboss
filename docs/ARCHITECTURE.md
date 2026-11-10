@@ -6,7 +6,7 @@
 
 直接在 React 外维护 Three.js 会增加生命周期管理；全 3D 界面会增加文本与触控成本。首版采用 React Three Fiber 管理 Three.js，用 DOM 显示按钮、文字与结算。
 
-本文描述目标架构；src 文件尚未实现。
+首个可运行版本已按本文实现（v0.1）。与最初草案的差异在对应小节以「实现说明」标出。
 
 ## 数据流
 
@@ -19,18 +19,25 @@ React 派发用户事件；界面与场景消费同一份状态。动画完成�
 | 位置 | 职责 |
 | --- | --- |
 | src/app/App.tsx | 应用装配与关卡选择 |
+| src/app/levels.ts | 关卡 JSON 登记与加载（调用校验） |
 | src/game/contracts.ts | 配置、状态、事件、场景协议 |
 | src/game/validateLevel.ts | 配置结构、引用与资源标识校验 |
 | src/game/engine.ts | 初始状态、行动、结算和重开 |
 | src/game/useGame.ts | useReducer 接入 |
+| src/ui/feedback.ts | 由配置数据生成每步反馈文案 |
+| src/ui/copy.ts | 跨关卡通用的界面文案 |
 | src/ui/GameShell.tsx | 通用布局与阶段展示 |
 | src/ui/ActionPanel.tsx | 行动按钮与事件派发 |
 | src/ui/ResultPanel.tsx | 结局、重开和分享 |
-| src/scenes/registry.ts | sceneId 到本地组件的白名单 |
+| src/scenes/catalog.ts | sceneId 与支持的 cue 清单（不依赖 React，供校验使用） |
+| src/scenes/registry.ts | sceneId 到本地组件的白名单（懒加载） |
+| src/scenes/SceneHost.tsx | 3D／简化显示切换、错误边界、上下文丢失处理 |
+| src/scenes/SceneCanvas.tsx | 共享 Canvas 设置（像素比上限、按需渲染） |
 | src/scenes/PrinterScene.tsx | 打印机模型与演出 |
 | src/scenes/FallbackScene.tsx | WebGL 不可用时的简化显示 |
 | content/levels/*.json | 阶段、行动、数值和文案 |
-| public/assets/ | 图片、音效和模型 |
+| src/styles/tokens.css | 颜色、间距、字体、边框与动效变量 |
+| public/ | 静态资源（当前仅 favicon） |
 | tests/ | 配置、规则与浏览器流程验证 |
 
 ## 内容协议
@@ -48,6 +55,8 @@ React 派发用户事件；界面与场景消费同一份状态。动画完成�
 - JSON 不包含可执行脚本或求值表达式，不允许任意 URL 动态导入组件。
 - 未支持的协议版本和不合法配置展示可读错误。
 
+实现说明（校验额外保证）：拒绝任何未知字段；所有阶段必须可从初始阶段到达；从任一可达阶段出发都必须仍能到达 resolve（不允许死循环陷阱）；三个结局必须齐全。校验返回仅含已知字段的冻结副本。
+
 ## 固定运行接口
 
 ```ts
@@ -59,11 +68,16 @@ interface GameState {
   patience: number;
   patienceSpent: number;
   history: string[];
+  turns: TurnRecord[]; // 实现说明：附带阶段上下文，供反馈与记录使用
   outcome: Outcome | null;
 }
 
-// LevelDefinition 对应上述配置协议；Result 在实现时定义为数据或校验错误。
-validateLevel(input: unknown): Result<LevelDefinition>;
+interface TurnRecord { phaseId: string; actionId: string; patienceCost: number; patienceAfter: number }
+type Result<T> = { ok: true; value: T } | { ok: false; errors: ValidationIssue[] };
+interface ValidationIssue { code: ValidationCode; path: string; message: string }
+
+// 实现说明：场景清单作为参数传入，使校验不依赖 React／Three.js。
+validateLevel(input: unknown, scenes: SceneCatalog): Result<LevelDefinition>;
 createInitialState(level: LevelDefinition): GameState;
 transition(level: LevelDefinition, state: GameState, event: GameEvent): GameState;
 ```
@@ -93,9 +107,10 @@ transition(level: LevelDefinition, state: GameState, event: GameEvent): GameStat
 - 场景读取 GameState、当前阶段 cue 和结局；不维护第二套游戏规则。
 - 首版打印机由基础几何体搭建，避免依赖尚未取得的模型。
 - 离线、队列、卡纸和结局映射独立演出。
-- 场景卸载时释放几何体、材质、纹理和动画资源。
+- 场景卸载时释放几何体、材质、纹理和动画资源（JSX 创建的对象由 React Three Fiber 释放；手动创建的材质在组件卸载时 dispose）。
 - WebGL 不可用、资源失败或上下文丢失时显示简化场景，保留 DOM 行动和完整流程。
 - 移动端限制像素比与特效数量，尊重减少动态效果偏好。性能预算在设备测试后确定。
+- 实现说明：Three.js 位于懒加载分包，加载期间显示简化场景；减少动态效果时按需渲染（frameloop="demand"）。
 
 ## 验证
 

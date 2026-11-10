@@ -4,13 +4,47 @@ An open-source browser game that turns everyday frustrations into boss fights.
 
 你只是想打印一张纸，但打印机决定成为今天的最终 Boss。
 
+[中文](#中文) · [English](#english)
+
+---
+
+## 中文
+
 浏览器即玩的荒诞生活 Boss 战小游戏：从普通软件界面开始，日常故障逐步升级，界面和 3D 打印机一起进入战斗状态。
 
-## 当前状态
+### 当前状态
 
-项目初始化与设计阶段。当前包含方案、架构约定、开发路线及关卡配置示例，尚无可运行游戏。Three.js 已纳入方案，依赖尚未安装。
+第一个可运行版本：首关「地狱打印机」可完整游玩，尚未部署，也未经过真人试玩。
 
-## MVP 范围
+**已实现并验证**
+
+- React + TypeScript + Vite 工程，依赖由 `package-lock.json` 锁定。
+- 关卡 JSON 运行时校验，错误以「位置 + 原因」的可读列表展示。
+- 纯函数规则引擎（`useReducer` 接入）：三个故障阶段、完美／普通／失败结局、重开、无效行动与终局保护、耐心归零优先判负。
+- DOM 操作界面：阶段、目标、耐心、行动、每步反馈、操作记录、结算面板；数字键选择行动、R 重开。
+- 界面随故障逐步异变（警示色、扫描线、轻微扭曲），尊重「减少动态效果」设置。
+- Three.js／React Three Fiber 几何体打印机，按场景注册表加载；WebGL 不可用、上下文丢失或手动切换时使用简化显示，游戏照常可玩。
+- 生产构建使用 GitHub Pages 子路径 `/dailyboss/`。
+
+**尚未完成**：真人试玩与数值调整（2–4 分钟目标）、结局分享、真机与横屏测试、仓库内的浏览器自动化测试、GitHub Pages 部署。详见 [开发路线](docs/ROADMAP.md)。
+
+### 运行
+
+需要 Node.js 20.19 或更高版本（开发时使用 Node 24 / npm 11）。
+
+```bash
+npm install
+npm run dev          # 开发服务器，http://localhost:5173/
+npm run typecheck    # TypeScript 类型检查
+npm test             # Vitest：规则、配置校验与反馈文案
+npm run build        # 类型检查 + 生产构建，输出到 dist/（base 为 /dailyboss/）
+npm run preview      # 预览构建结果，http://localhost:4173/dailyboss/
+npm run check        # 类型检查 + 测试 + 构建
+```
+
+调试参数：`?render=simple` 直接使用简化显示；`?level=<id>` 选择已登记的关卡（未知 ID 会显示配置错误页）。如需其他部署路径，可设置 `BASE_PATH=/其他路径/ npm run build`。
+
+### MVP 范围
 
 | 项目 | 内容 |
 | --- | --- |
@@ -25,7 +59,7 @@ An open-source browser game that turns everyday frustrations into boss fights.
 
 首版不包含 AI、账号、后端、数据库、多人模式、排行榜、编辑器或复杂动作战斗。
 
-## 固定框架，灵活内容
+### 固定框架，灵活内容
 
 | 固定部分 | 灵活部分 |
 | --- | --- |
@@ -37,21 +71,99 @@ An open-source browser game that turns everyday frustrations into boss fights.
 
 同类玩法优先改 JSON；新的 3D Boss 需要场景组件。拖拽、限时操作等超出既有协议的玩法需要扩展引擎，不承诺只改配置就能实现任意玩法。
 
-## 技术栈
+**新增同类关卡**：在 `content/levels/` 添加 JSON，并在 `src/app/levels.ts` 登记；若需要新 Boss 场景，在 `src/scenes/catalog.ts` 声明 sceneId 与支持的 cue，并在 `src/scenes/registry.ts` 注册组件。视觉风格集中在 `src/styles/tokens.css` 的 CSS 变量中。
 
-- React + TypeScript + Vite：应用与操作界面。
-- Three.js + React Three Fiber：3D Boss、灯光、镜头和动画。
-- CSS：软件界面异变与故障反馈。
+### 技术栈
+
+- React 19 + TypeScript 7 + Vite 8：应用与操作界面。
+- Three.js 0.187 + React Three Fiber 9：3D Boss、灯光、镜头和动画（按需懒加载）。
+- 纯 CSS 与设计变量：软件界面异变与故障反馈。
 - useReducer + 纯函数规则执行器：统一游戏状态。
 - JSON：独立关卡内容，加载时校验。
-- Vitest 与浏览器流程测试：实现阶段验证规则及核心流程。
+- Vitest：规则、配置与反馈测试。
 
-依赖版本在实现时核对兼容性并通过锁文件固定。
+### 目录
 
-## 文档与开发顺序
+| 位置 | 职责 |
+| --- | --- |
+| `content/levels/*.json` | 关卡内容（阶段、行动、数值、文案） |
+| `src/game/` | 协议类型、配置校验、纯规则引擎、React 接入 |
+| `src/ui/` | 通用 DOM 界面组件与框架文案 |
+| `src/scenes/` | 场景白名单、3D 场景、简化显示 |
+| `src/styles/` | 设计变量与样式 |
+| `tests/` | Vitest 测试 |
 
-1. [核心架构与接口](docs/ARCHITECTURE.md)：明确固定边界和内容协议。
+### 文档
+
+1. [核心架构与接口](docs/ARCHITECTURE.md)：固定边界和内容协议。
 2. [开发阶段与验收](docs/ROADMAP.md)：核心循环 → 完整关卡 → 3D 联动 → 体验与发布。
-3. [关卡配置示例](content/levels/printer-from-hell.json)：用于评审接口，尚未接入运行时。
+3. [关卡配置](content/levels/printer-from-hell.json)：首关的实际运行配置。
 
-社区 JSON 关卡在 MVP 试玩验证后再推进。示例中的行动、数值及具体文案是可调整的初始设计。
+社区 JSON 关卡在 MVP 试玩验证后再推进。关卡中的行动、数值及具体文案是可调整的初始设计。
+
+---
+
+## English
+
+An absurd, browser-playable boss fight about everyday life. It starts as an ordinary printing utility; as the faults escalate, the interface and a 3D printer turn the chore into a boss battle.
+
+### Status
+
+First runnable version. Level 1, "Printer From Hell" (地狱打印机), is fully playable. It has not been deployed or playtested with real players yet. The player-facing text is in Chinese.
+
+**Implemented and verified**
+
+- React + TypeScript + Vite project, dependencies pinned by `package-lock.json`.
+- Runtime validation of level JSON, with readable errors that give the location and the reason.
+- Pure rule engine wired through `useReducer`: three fault phases, perfect/normal/failure endings, restart, protection against invalid actions and actions after the game ends, and failure taking precedence when patience hits zero.
+- DOM interface: phase, objective, patience, actions, feedback after every step, action log, and result panel. Number keys pick actions and R restarts.
+- The interface degrades step by step as faults escalate (warning colors, scanlines, slight distortion) and respects `prefers-reduced-motion`.
+- A primitive-geometry printer built with Three.js / React Three Fiber and loaded through a scene registry. A simplified DOM display takes over when WebGL is unavailable, when the context is lost, or when the player turns it on. The game stays fully playable either way.
+- Production builds use the GitHub Pages subpath `/dailyboss/`.
+
+**Not done yet:** playtesting and balance (2–4 minute target), sharing results, real-device and landscape testing, browser automation tests in the repo, and GitHub Pages deployment. See the [roadmap](docs/ROADMAP.md).
+
+### Running it
+
+Requires Node.js 20.19+ (developed with Node 24 / npm 11).
+
+```bash
+npm install
+npm run dev          # dev server at http://localhost:5173/
+npm run typecheck    # TypeScript type check
+npm test             # Vitest: rules, config validation, feedback text
+npm run build        # typecheck + production build into dist/ (base /dailyboss/)
+npm run preview      # serve the build at http://localhost:4173/dailyboss/
+npm run check        # typecheck + tests + build
+```
+
+Debug parameters: `?render=simple` starts in the simplified display. `?level=<id>` picks a registered level; an unknown ID shows the config error page. To deploy under a different path, run `BASE_PATH=/other/ npm run build`.
+
+### How it fits together
+
+`content/levels/*.json` → `validateLevel` → `LevelDefinition` → pure `transition()` → `GameState` → DOM UI + 3D scene.
+
+- **Content** (`content/levels/`): phases, actions, costs, and all level text. React components hold no level dialogue.
+- **Game** (`src/game/`): protocol types, validation, the pure engine, and the `useGame` hook. There are no timers, randomness, or rendering, so animation never decides an outcome.
+- **UI** (`src/ui/`): generic, reusable panels and the framework-level labels.
+- **Scenes** (`src/scenes/`): a whitelist of `sceneId` → component, the printer scene, and the fallback display. Scenes only read game state.
+- **Styles** (`src/styles/tokens.css`): colors, spacing, type, borders, and motion as CSS variables. Escalation only re-points these tokens.
+
+**Adding a level with the same mechanics:** add a JSON file under `content/levels/` and register it in `src/app/levels.ts`. A new boss scene also needs its cues declared in `src/scenes/catalog.ts` and a component in `src/scenes/registry.ts`. New mechanics (drag, timers, physics) need explicit engine changes; there is no scripting system.
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (Chinese) for the full protocol and rules.
+
+### MVP scope
+
+| Item | Detail |
+| --- | --- |
+| First level | Printer From Hell / 地狱打印机 |
+| Goal | Print one page |
+| Session | 2–4 minutes target, pending playtests |
+| Starting resource | Patience 3 |
+| Flow | Offline → queue failure → paper jam → printed |
+| Endings | Perfect, normal, failure; restart supported |
+| Style | An ordinary utility UI mutating into a boss fight |
+| Platforms | Desktop and mobile browsers; GitHub Pages target |
+
+Out of scope for v1: AI, accounts, backend, database, multiplayer, leaderboards, editors, or complex action combat.
