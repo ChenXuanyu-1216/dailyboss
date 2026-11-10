@@ -1,5 +1,5 @@
 import { Canvas } from '@react-three/fiber';
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useLayoutEffect, useRef, type ReactNode } from 'react';
 
 interface Props {
   children: ReactNode;
@@ -13,12 +13,28 @@ interface Props {
  * - Reduced motion renders on demand only (scenes call invalidate on state changes).
  * - Context loss is reported to SceneHost, which swaps in the DOM fallback.
  * React Three Fiber disposes JSX-created geometries/materials and the renderer on unmount.
+ *
+ * Context-loss listener lifecycle: when <Canvas> unmounts, R3F (9.x) releases the renderer with
+ * `gl.forceContextLoss()`, which fires a real `webglcontextlost` event. That intentional teardown
+ * must not be reported as a failure, so the listener is detached in this component's layout-effect
+ * cleanup. On unmount React destroys a parent's layout effects before its children's, so the
+ * listener is gone before <Canvas> starts its teardown. Genuine loss while mounted is still reported.
  */
 export function SceneCanvas({ children, reducedMotion, onContextLost }: Props) {
   const lostRef = useRef(onContextLost);
-  useEffect(() => {
+  const detachRef = useRef<(() => void) | null>(null);
+
+  useLayoutEffect(() => {
     lostRef.current = onContextLost;
   }, [onContextLost]);
+
+  useLayoutEffect(
+    () => () => {
+      detachRef.current?.();
+      detachRef.current = null;
+    },
+    [],
+  );
 
   return (
     <Canvas
@@ -27,10 +43,18 @@ export function SceneCanvas({ children, reducedMotion, onContextLost }: Props) {
       camera={{ position: [3.1, 2.1, 4.6], fov: 30, near: 0.1, far: 40 }}
       gl={{ antialias: true, alpha: true, powerPreference: 'low-power' }}
       onCreated={({ gl }) => {
-        gl.domElement.addEventListener('webglcontextlost', (event) => {
+        detachRef.current?.();
+        const canvas = gl.domElement;
+        let attached = true;
+        const onLost = (event: Event) => {
           event.preventDefault();
-          lostRef.current();
-        });
+          if (attached) lostRef.current();
+        };
+        canvas.addEventListener('webglcontextlost', onLost);
+        detachRef.current = () => {
+          attached = false;
+          canvas.removeEventListener('webglcontextlost', onLost);
+        };
       }}
     >
       {children}
