@@ -4,6 +4,8 @@ An open-source browser game that turns everyday frustrations into boss fights.
 
 你只是想打印一张纸，但打印机决定成为今天的最终 Boss。
 
+**在线试玩 / Play now：<https://lachenxuanyu.com/dailyboss/>**
+
 [中文](#中文) · [English](#english)
 
 ---
@@ -14,7 +16,7 @@ An open-source browser game that turns everyday frustrations into boss fights.
 
 ### 当前状态
 
-第一个可运行版本：首关「地狱打印机」可完整游玩。已有浏览器回归测试与 CI；GitHub Pages 部署工作流已就绪，但尚未实际部署，也未经过真人试玩。
+第一个可运行版本：首关「地狱打印机」可完整游玩，已部署到 GitHub Pages（<https://lachenxuanyu.com/dailyboss/>）。已有浏览器回归测试与 CI；尚未经过真人试玩。
 
 **已实现并验证**
 
@@ -27,8 +29,9 @@ An open-source browser game that turns everyday frustrations into boss fights.
 - 生产构建使用 GitHub Pages 子路径 `/dailyboss/`。
 - Playwright 浏览器测试（21 项）针对 `/dailyboss/` 下的生产构建运行，覆盖三种结局、键盘操作、真实 WebGL、上下文丢失、无 WebGL、手机横竖屏视口与减少动态效果。
 - 修复：手动切换「简化显示」时误报「3D 渲染中断」。
+- GitHub Pages 部署：`main` 上的 CI 与部署已在 GitHub 上成功运行（2026-11-10），全部 21 项浏览器测试在线上站点同样通过。
 
-**尚未完成**：真人试玩与数值调整（2–4 分钟目标）、结局分享、真机测试、动画人工验收、CI 在 GitHub 上的首次运行、GitHub Pages 实际部署（需仓库所有者启用，见下文）。详见 [开发路线](docs/ROADMAP.md)。
+**尚未完成**：真人试玩与数值调整（2–4 分钟目标）、结局分享、真机测试、动画人工验收。详见 [开发路线](docs/ROADMAP.md)。
 
 ### 运行
 
@@ -62,14 +65,14 @@ npm run test:e2e     # 生产构建 + Playwright 浏览器测试（/dailyboss/�
 
 推送到 `main`（或在 `main` 上手动运行 CI 工作流）且全部检查通过后，`deploy` 任务把**已测试的** `dist/` 发布到 GitHub Pages。Pull Request 永远不会部署。
 
-仓库所有者需要先完成一次设置：
+本仓库已完成以下一次性设置（复刻仓库时需要重做）：
 
 1. **Settings → Pages → Build and deployment → Source** 选择 **GitHub Actions**。
 2. 若 **Settings → Actions → General** 限制了可用的 Action，需允许 GitHub 官方 Action（`actions/*`）。
 3. 可选：在 **Settings → Environments → github-pages** 添加保护规则（如需人工批准）；部署任务会遵守这些规则。
 4. 合并到 `main`，或在 **Actions → CI → Run workflow** 中选择 `main` 运行。
 
-发布地址应为 `https://chenxuanyu-1216.github.io/dailyboss/`。私有仓库使用 Pages 可能需要付费方案；工作流不会更改仓库可见性。
+站点地址：**<https://lachenxuanyu.com/dailyboss/>**（账号已配置自定义域名，`https://chenxuanyu-1216.github.io/dailyboss/` 会自动跳转）。免费方案下 Pages 要求仓库公开；工作流不会更改仓库可见性。
 
 ### MVP 范围
 
@@ -140,7 +143,7 @@ An absurd, browser-playable boss fight about everyday life. It starts as an ordi
 
 ### Status
 
-First runnable version. Level 1, "Printer From Hell" (地狱打印机), is fully playable. Browser regression tests and CI are in place, and a GitHub Pages deployment workflow is ready, but nothing has been deployed or playtested with real players yet. The player-facing text is in Chinese.
+First runnable version. Level 1, "Printer From Hell" (地狱打印机), is fully playable and deployed to GitHub Pages at <https://lachenxuanyu.com/dailyboss/>. Browser regression tests and CI are in place. It hasn't been playtested with real players yet. The player-facing text is in Chinese.
 
 **Implemented and verified**
 
@@ -153,8 +156,9 @@ First runnable version. Level 1, "Printer From Hell" (地狱打印机), is fully
 - Production builds use the GitHub Pages subpath `/dailyboss/`.
 - 21 Playwright browser tests run against the production build under `/dailyboss/`. They cover all three endings, keyboard play, real WebGL, context loss, no WebGL, mobile portrait and landscape viewports, and reduced motion.
 - Fixed: manually switching to the simplified display no longer reports a false "3D rendering interrupted" warning.
+- GitHub Pages deployment: CI and the deploy job ran successfully on `main` on GitHub (2026-11-10), and all 21 browser tests also pass against the live site.
 
-**Not done yet:** playtesting and balance (2–4 minute target), sharing results, real-device testing, manual approval of the animations, the first CI run on GitHub, and the actual GitHub Pages deployment (needs owner setup, see below). See the [roadmap](docs/ROADMAP.md).
+**Not done yet:** playtesting and balance (2–4 minute target), sharing results, real-device testing, and manual approval of the animations. See the [roadmap](docs/ROADMAP.md).
 
 ### Running it
 
@@ -188,14 +192,14 @@ Debug parameters: `?render=simple` starts in the simplified display. `?level=<id
 
 After a push to `main` (or a manual run of the CI workflow on `main`) passes every check, the `deploy` job publishes the **tested** `dist/` to GitHub Pages. Pull requests are never deployed.
 
-One-time setup by the repository owner:
+This repository has completed the one-time setup below (redo it in a fork):
 
 1. **Settings → Pages → Build and deployment → Source**: choose **GitHub Actions**.
 2. If **Settings → Actions → General** restricts which actions may run, allow GitHub-authored actions (`actions/*`).
 3. Optional: add protection rules (such as required reviewers) under **Settings → Environments → github-pages**. The deploy job respects them.
 4. Merge to `main`, or run **Actions → CI → Run workflow** on `main`.
 
-The site should then be at `https://chenxuanyu-1216.github.io/dailyboss/`. Pages on a private repository may require a paid plan; the workflow never changes repository visibility.
+The site is at **<https://lachenxuanyu.com/dailyboss/>**. The account has a custom domain, so `https://chenxuanyu-1216.github.io/dailyboss/` redirects there. On the free plan, Pages requires a public repository; the workflow never changes repository visibility.
 
 ### How it fits together
 
