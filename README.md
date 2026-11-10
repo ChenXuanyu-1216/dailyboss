@@ -1,5 +1,7 @@
 # DailyBoss · 人生副本
 
+An open-source browser game that turns everyday frustrations into boss fights.
+
 你只是想打印一张纸，但打印机决定成为今天的最终 Boss。
 
 浏览器即玩的荒诞生活 Boss 战小游戏：从普通软件界面开始，日常故障逐步升级，界面和 3D 打印机一起进入战斗状态。
