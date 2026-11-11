@@ -701,6 +701,319 @@
   }
 }
 
+/* ---------- boss presentation ---------- */
+
+.device {
+  position: relative;
+}
+
+.boss-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-4);
+  background: #1d1517;
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  border-bottom: var(--bw) solid #000;
+}
+
+.boss-bar__name {
+  flex: none;
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.04em;
+}
+
+.boss-bar__track {
+  position: relative;
+  flex: 1;
+  height: 10px;
+  background: #3d2e31;
+  border: var(--bw) solid #000;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.boss-bar__fill {
+  position: absolute;
+  inset: 0;
+  transform-origin: left center;
+  background: linear-gradient(90deg, var(--c-danger), var(--c-danger-strong));
+  transition: transform var(--dur-slow) var(--ease-out);
+}
+
+.app[data-outcome='perfect'] .boss-bar__fill,
+.app[data-outcome='normal'] .boss-bar__fill {
+  background: var(--c-ok);
+}
+
+.boss-bar__value {
+  flex: none;
+  min-width: 3.5em;
+  text-align: right;
+}
+
+.boss-card {
+  position: absolute;
+  inset: 34px 0 auto;
+  z-index: 3;
+  display: grid;
+  justify-items: center;
+  gap: var(--sp-1);
+  padding: var(--sp-4) var(--sp-3);
+  pointer-events: none;
+  color: #fff;
+  background: linear-gradient(90deg, transparent, rgb(150 18 24 / 0.92) 15%, rgb(150 18 24 / 0.92) 85%, transparent);
+  text-shadow: 0 2px 0 rgb(0 0 0 / 0.35);
+  animation: boss-card 1.8s var(--ease-out) forwards;
+}
+
+.boss-card__kicker {
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.3em;
+}
+
+.boss-card__title {
+  font-size: 2rem;
+  font-weight: var(--fw-bold);
+  line-height: var(--lh-tight);
+}
+
+.hurt-pop {
+  position: absolute;
+  top: 46%;
+  left: 50%;
+  z-index: 3;
+  padding: 2px var(--sp-2);
+  pointer-events: none;
+  font-family: var(--font-mono);
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-bold);
+  color: #fff;
+  background: var(--c-danger);
+  border-radius: var(--radius-sm);
+  transform: translate(-50%, 0);
+  opacity: 0;
+  animation: hurt-pop 1.1s var(--ease-out) forwards;
+}
+
+/* ---------- skill checks ---------- */
+
+.btn__badge {
+  margin-left: auto;
+  padding: 0 var(--sp-2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--c-danger);
+  border: var(--bw) solid currentColor;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+}
+
+.skill {
+  border: var(--bw-strong) solid var(--c-accent);
+  animation: phase-in var(--dur-med) var(--ease-out);
+}
+
+.skill__title {
+  margin-top: var(--sp-1);
+  font-size: var(--fs-lg);
+  line-height: var(--lh-tight);
+}
+
+.skill__hint {
+  margin-top: var(--sp-1);
+  font-size: var(--fs-sm);
+  color: var(--c-ink-2);
+}
+
+.skill__track,
+.skill__meter {
+  position: relative;
+  height: 28px;
+  margin-top: var(--sp-3);
+  background: var(--c-sunken);
+  border: var(--bw) solid var(--c-line-strong);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.skill__zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: color-mix(in srgb, var(--c-ok) 45%, transparent);
+  border-left: var(--bw-strong) solid var(--c-ok);
+  border-right: var(--bw-strong) solid var(--c-ok);
+}
+
+.skill__needle {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  left: calc(var(--needle, 0) * 100%);
+  width: 4px;
+  margin-left: -2px;
+  background: var(--c-ink);
+  box-shadow: 0 0 0 1px #fff;
+}
+
+.skill__fill {
+  position: absolute;
+  inset: 0;
+  transform-origin: left center;
+  background: var(--c-danger);
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+
+.skill__count {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 100%;
+  font-family: var(--font-mono);
+  font-weight: var(--fw-bold);
+}
+
+.skill__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
+}
+
+.skill__hit {
+  flex: 1;
+  min-height: 56px;
+  font-size: var(--fs-lg);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.skill__verdict {
+  min-height: 1.4em;
+  margin-top: var(--sp-2);
+  font-weight: var(--fw-bold);
+}
+
+.skill[data-verdict='success'] {
+  border-color: var(--c-ok);
+}
+.skill[data-verdict='success'] .skill__verdict {
+  color: var(--c-ok);
+}
+.skill[data-verdict='fail'] .skill__verdict {
+  color: var(--c-danger);
+}
+
+.log__skill {
+  margin-left: var(--sp-2);
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  color: var(--c-ok);
+}
+
+.log__skill[data-skill-result='fail'] {
+  color: var(--c-danger);
+}
+
+.console__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+}
+
+/* ---------- victory print ---------- */
+
+.result__print {
+  display: grid;
+  gap: var(--sp-1);
+  width: min(220px, 80%);
+  margin: 0 auto var(--sp-3);
+  padding: var(--sp-3);
+  background: #fff;
+  border: var(--bw) solid var(--c-line-strong);
+  box-shadow: 0 6px 14px -8px rgb(0 0 0 / 0.35);
+  font-size: var(--fs-sm);
+  text-align: center;
+  animation: print-out 0.9s var(--ease-out);
+}
+
+.result[data-outcome='normal'] .result__print {
+  transform: rotate(-2deg);
+  clip-path: polygon(0 0, 100% 0, 100% 82%, 88% 100%, 0 100%);
+}
+
+.result__print-head {
+  font-family: var(--font-mono);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-bold);
+  color: var(--c-ok);
+  letter-spacing: 0.1em;
+}
+
+.result__print-body {
+  font-weight: var(--fw-bold);
+}
+
+.result__print-lines {
+  height: 18px;
+  background: repeating-linear-gradient(180deg, var(--c-line) 0 2px, transparent 2px 6px);
+}
+
+@keyframes boss-card {
+  0% {
+    opacity: 0;
+    transform: scaleY(0.2);
+  }
+  12%,
+  80% {
+    opacity: 1;
+    transform: none;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes hurt-pop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 8px) scale(0.8);
+  }
+  15% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1.15);
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -36px);
+  }
+}
+
+@keyframes print-out {
+  from {
+    opacity: 0;
+    transform: translateY(-24px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Keep the information, drop the motion: the card stays readable until it unmounts. */
+  .boss-card {
+    animation: none;
+  }
+}
+
 /* ---------- keyframes ---------- */
 
 @keyframes phase-in {

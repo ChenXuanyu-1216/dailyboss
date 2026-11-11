@@ -1,27 +1,32 @@
 import {
+  INTENSITIES,
   OUTCOMES,
+  SKILL_TYPES,
   SUPPORTED_SCHEMA_VERSIONS,
   type ActionDefinition,
   type ActionTarget,
   type EndingDefinition,
+  type Intensity,
   type LevelDefinition,
   type Outcome,
   type PhaseDefinition,
   type Result,
   type SceneCatalog,
   type SchemaVersion,
+  type SkillDefinition,
+  type SkillType,
   type ValidationCode,
   type ValidationIssue,
 } from './contracts';
 
 /**
- * Runtime validation for level JSON (protocol v0.1).
+ * Runtime validation for level JSON (protocol v0.1 and v0.2).
  *
  * Guarantees when `ok`:
- * - supported schemaVersion; no unknown fields at any level
+ * - supported schemaVersion; no unknown fields at any level (v0.2 fields only in v0.2 files)
  * - non-empty strings, positive integer initialPatience, non-negative integer costs
  * - unique phase IDs, unique action IDs within a phase
- * - initial phase and every phase target exist
+ * - initial phase and every phase target (including skill `onFail` targets) exist
  * - sceneId is registered and every cue is supported by that scene
  * - every phase is reachable from the initial phase
  * - from every phase a `resolve` target is still reachable (no trap loops)
@@ -41,8 +46,12 @@ const LEVEL_KEYS = [
   'phases',
   'endings',
 ] as const;
-const PHASE_KEYS = ['id', 'title', 'description', 'cue', 'actions'] as const;
-const ACTION_KEYS = ['id', 'label', 'patienceCost', 'target'] as const;
+const PHASE_KEYS_V01 = ['id', 'title', 'description', 'cue', 'actions'] as const;
+const PHASE_KEYS_V02 = [...PHASE_KEYS_V01, 'intensity'] as const;
+const ACTION_KEYS_V01 = ['id', 'label', 'patienceCost', 'target'] as const;
+const ACTION_KEYS_V02 = [...ACTION_KEYS_V01, 'feedback', 'skill'] as const;
+const SKILL_KEYS = ['type', 'onFail'] as const;
+const SKILL_FAIL_KEYS = ['patienceCost', 'target', 'feedback'] as const;
 const ENDING_KEYS = ['title', 'description'] as const;
 
 type Obj = Record<string, unknown>;
@@ -93,6 +102,12 @@ function readString(c: Collector, obj: Obj, key: string, path: string): string |
     return undefined;
   }
   return v;
+}
+
+/** Reads an optional non-empty string. Returns `null` on error, `undefined` when absent. */
+function readOptionalString(c: Collector, obj: Obj, key: string, path: string): string | undefined | null {
+  if (!(key in obj)) return undefined;
+  return readString(c, obj, key, path) ?? null;
 }
 
 function readInteger(
@@ -159,26 +174,102 @@ function readTarget(c: Collector, raw: unknown, path: string): ActionTarget | un
   return undefined;
 }
 
-function readAction(c: Collector, raw: unknown, path: string): ActionDefinition | undefined {
+function readRequiredTarget(c: Collector, obj: Obj, path: string): ActionTarget | undefined {
+  if (!('target' in obj)) {
+    c.add('missing-field', join(path, 'target'), '缺少必填字段 "target"。');
+    return undefined;
+  }
+  return readTarget(c, obj.target, join(path, 'target'));
+}
+
+function readSkill(c: Collector, raw: unknown, path: string): SkillDefinition | undefined {
   if (!isObject(raw)) {
     c.add('invalid-type', path, `应为对象，实际为 ${describe(raw)}。`);
     return undefined;
   }
-  checkKeys(c, raw, ACTION_KEYS, path);
+  checkKeys(c, raw, SKILL_KEYS, path);
+  let type: SkillType | undefined;
+  if (!('type' in raw)) {
+    c.add('missing-field', join(path, 'type'), '缺少必填字段 "type"。');
+  } else if (!(SKILL_TYPES as readonly unknown[]).includes(raw.type)) {
+    c.add(
+      'invalid-value',
+      join(path, 'type'),
+      `不支持的技能类型 ${JSON.stringify(raw.type) ?? 'undefined'}，只能是 ${SKILL_TYPES.map((t) => `"${t}"`).join(' 或 ')}。`,
+    );
+  } else {
+    type = raw.type as SkillType;
+  }
+
+  const fp = join(path, 'onFail');
+  if (!('onFail' in raw)) {
+    c.add('missing-field', fp, '缺少必填字段 "onFail"。');
+    return undefined;
+  }
+  const f = raw.onFail;
+  if (!isObject(f)) {
+    c.add('invalid-type', fp, `应为对象，实际为 ${describe(f)}。`);
+    return undefined;
+  }
+  checkKeys(c, f, SKILL_FAIL_KEYS, fp);
+  const patienceCost = readInteger(c, f, 'patienceCost', fp, 0);
+  const target = readRequiredTarget(c, f, fp);
+  const feedback = readOptionalString(c, f, 'feedback', fp);
+  if (type === undefined || patienceCost === undefined || !target || feedback === null) return undefined;
+  return {
+    type,
+    onFail: { patienceCost, target, ...(feedback !== undefined ? { feedback } : {}) },
+  };
+}
+
+function readAction(
+  c: Collector,
+  raw: unknown,
+  path: string,
+  version: SchemaVersion,
+): ActionDefinition | undefined {
+  if (!isObject(raw)) {
+    c.add('invalid-type', path, `应为对象，实际为 ${describe(raw)}。`);
+    return undefined;
+  }
+  checkKeys(c, raw, version === '0.1' ? ACTION_KEYS_V01 : ACTION_KEYS_V02, path);
   const id = readString(c, raw, 'id', path);
   const label = readString(c, raw, 'label', path);
   const patienceCost = readInteger(c, raw, 'patienceCost', path, 0);
-  let target: ActionTarget | undefined;
-  if (!('target' in raw)) c.add('missing-field', join(path, 'target'), '缺少必填字段 "target"。');
-  else target = readTarget(c, raw.target, join(path, 'target'));
-  if (id === undefined || label === undefined || patienceCost === undefined || !target) return undefined;
-  return { id, label, patienceCost, target };
+  const target = readRequiredTarget(c, raw, path);
+
+  let feedback: string | undefined | null;
+  let skill: SkillDefinition | undefined | null;
+  if (version !== '0.1') {
+    feedback = readOptionalString(c, raw, 'feedback', path);
+    if ('skill' in raw) skill = readSkill(c, raw.skill, join(path, 'skill')) ?? null;
+  }
+
+  if (
+    id === undefined ||
+    label === undefined ||
+    patienceCost === undefined ||
+    !target ||
+    feedback === null ||
+    skill === null
+  ) {
+    return undefined;
+  }
+  return {
+    id,
+    label,
+    patienceCost,
+    target,
+    ...(feedback !== undefined ? { feedback } : {}),
+    ...(skill !== undefined ? { skill } : {}),
+  };
 }
 
 function readPhase(
   c: Collector,
   raw: unknown,
   path: string,
+  version: SchemaVersion,
   sceneCues: readonly string[] | undefined,
   sceneId: string | undefined,
 ): PhaseDefinition | undefined {
@@ -186,7 +277,7 @@ function readPhase(
     c.add('invalid-type', path, `应为对象，实际为 ${describe(raw)}。`);
     return undefined;
   }
-  checkKeys(c, raw, PHASE_KEYS, path);
+  checkKeys(c, raw, version === '0.1' ? PHASE_KEYS_V01 : PHASE_KEYS_V02, path);
   const id = readString(c, raw, 'id', path);
   const title = readString(c, raw, 'title', path);
   const description = readString(c, raw, 'description', path);
@@ -198,6 +289,21 @@ function readPhase(
       `场景 "${sceneId}" 不支持 cue "${cue}"。支持：${sceneCues.join('、')}。`,
     );
   }
+
+  let intensity: Intensity | undefined | null;
+  if (version !== '0.1' && 'intensity' in raw) {
+    if ((INTENSITIES as readonly unknown[]).includes(raw.intensity)) {
+      intensity = raw.intensity as Intensity;
+    } else {
+      c.add(
+        'invalid-value',
+        join(path, 'intensity'),
+        `不支持的强度 ${JSON.stringify(raw.intensity) ?? 'undefined'}，只能是 ${INTENSITIES.map((t) => `"${t}"`).join('、')}。`,
+      );
+      intensity = null;
+    }
+  }
+
   const rawActions = readArray(c, raw, 'actions', path);
   const actions: ActionDefinition[] = [];
   let actionsOk = rawActions !== undefined;
@@ -205,7 +311,7 @@ function readPhase(
     const seen = new Set<string>();
     rawActions.forEach((ra, i) => {
       const ap = join(join(path, 'actions'), i);
-      const action = readAction(c, ra, ap);
+      const action = readAction(c, ra, ap, version);
       if (!action) {
         actionsOk = false;
         return;
@@ -218,10 +324,17 @@ function readPhase(
       actions.push(action);
     });
   }
-  if (id === undefined || title === undefined || description === undefined || cue === undefined || !actionsOk) {
+  if (
+    id === undefined ||
+    title === undefined ||
+    description === undefined ||
+    cue === undefined ||
+    intensity === null ||
+    !actionsOk
+  ) {
     return undefined;
   }
-  return { id, title, description, cue, actions };
+  return { id, title, description, cue, actions, ...(intensity !== undefined ? { intensity } : {}) };
 }
 
 function readEndings(c: Collector, obj: Obj, path: string): Record<Outcome, EndingDefinition> | undefined {
@@ -260,6 +373,13 @@ function readEndings(c: Collector, obj: Obj, path: string): Record<Outcome, Endi
   return ok ? (result as Record<Outcome, EndingDefinition>) : undefined;
 }
 
+/** Every outcome an action can lead to: its own target and, for skill actions, the failure target. */
+function actionTargets(action: ActionDefinition): { target: ActionTarget; path: string }[] {
+  const list = [{ target: action.target, path: 'target' }];
+  if (action.skill) list.push({ target: action.skill.onFail.target, path: 'skill.onFail.target' });
+  return list;
+}
+
 /** Graph checks: references, reachability, and that `resolve` stays reachable from every phase. */
 function checkGraph(c: Collector, phases: PhaseDefinition[], initialPhaseId: string): void {
   const index = new Map(phases.map((p, i) => [p.id, i]));
@@ -271,28 +391,32 @@ function checkGraph(c: Collector, phases: PhaseDefinition[], initialPhaseId: str
   }
   phases.forEach((phase, pi) => {
     phase.actions.forEach((action, ai) => {
-      if (action.target.type === 'phase' && !index.has(action.target.id)) {
-        c.add(
-          'unknown-phase-ref',
-          `phases[${pi}].actions[${ai}].target.id`,
-          `行动 "${action.id}" 指向不存在的阶段 "${action.target.id}"。`,
-        );
-        refsOk = false;
+      for (const { target, path } of actionTargets(action)) {
+        if (target.type === 'phase' && !index.has(target.id)) {
+          c.add(
+            'unknown-phase-ref',
+            `phases[${pi}].actions[${ai}].${path}.id`,
+            `行动 "${action.id}" 指向不存在的阶段 "${target.id}"。`,
+          );
+          refsOk = false;
+        }
       }
     });
   });
   if (!refsOk) return;
 
-  // Forward reachability from the initial phase.
+  // Forward reachability from the initial phase (success and failure branches both count).
   const reachable = new Set<string>([initialPhaseId]);
   const queue = [initialPhaseId];
   while (queue.length > 0) {
     const id = queue.shift()!;
     const phase = phases[index.get(id)!]!;
     for (const a of phase.actions) {
-      if (a.target.type === 'phase' && !reachable.has(a.target.id)) {
-        reachable.add(a.target.id);
-        queue.push(a.target.id);
+      for (const { target } of actionTargets(a)) {
+        if (target.type === 'phase' && !reachable.has(target.id)) {
+          reachable.add(target.id);
+          queue.push(target.id);
+        }
       }
     }
   }
@@ -302,15 +426,17 @@ function checkGraph(c: Collector, phases: PhaseDefinition[], initialPhaseId: str
     }
   });
 
-  // Backward: phases from which a resolve action is reachable (fixed-point iteration).
+  // Backward: phases from which a resolve is reachable (fixed-point iteration over all branches).
   const canResolve = new Set<string>();
   let changed = true;
   while (changed) {
     changed = false;
     for (const phase of phases) {
       if (canResolve.has(phase.id)) continue;
-      const ok = phase.actions.some(
-        (a) => a.target.type === 'resolve' || (a.target.type === 'phase' && canResolve.has(a.target.id)),
+      const ok = phase.actions.some((a) =>
+        actionTargets(a).some(
+          ({ target }) => target.type === 'resolve' || (target.type === 'phase' && canResolve.has(target.id)),
+        ),
       );
       if (ok) {
         canResolve.add(phase.id);
@@ -354,6 +480,7 @@ export function validateLevel(input: unknown, scenes: SceneCatalog): Result<Leve
     );
     return { ok: false, errors: c.errors };
   }
+  const schemaVersion = version as SchemaVersion;
 
   checkKeys(c, input, LEVEL_KEYS, '');
   const id = readString(c, input, 'id', '');
@@ -383,7 +510,7 @@ export function validateLevel(input: unknown, scenes: SceneCatalog): Result<Leve
   if (rawPhases) {
     const seen = new Set<string>();
     rawPhases.forEach((rp, i) => {
-      const phase = readPhase(c, rp, `phases[${i}]`, sceneCues, sceneId);
+      const phase = readPhase(c, rp, `phases[${i}]`, schemaVersion, sceneCues, sceneId);
       if (!phase) {
         phasesOk = false;
         return;
@@ -417,7 +544,7 @@ export function validateLevel(input: unknown, scenes: SceneCatalog): Result<Leve
   return {
     ok: true,
     value: deepFreeze({
-      schemaVersion: version as SchemaVersion,
+      schemaVersion,
       id,
       title,
       objective,

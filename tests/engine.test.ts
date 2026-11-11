@@ -1,20 +1,25 @@
 import { describe, expect, it } from 'vitest';
-import type { GameEvent, GameState, LevelDefinition } from '../src/game/contracts';
+import type { GameEvent, GameState, LevelDefinition, SkillResult } from '../src/game/contracts';
 import {
   createInitialState,
   getAvailableActions,
+  getBossHealth,
   getIntensity,
   transition,
 } from '../src/game/engine';
 import { validateLevel } from '../src/game/validateLevel';
 import { SCENE_CATALOG } from '../src/scenes/catalog';
+import printerV01 from './fixtures/printer-v0.1.json';
 import { rawPrinter, validPrinter } from './helpers';
 
-function play(level: LevelDefinition, actions: string[], from?: GameState): GameState {
-  return actions.reduce<GameState>(
-    (s, actionId) => transition(level, s, { type: 'ACT', actionId }),
-    from ?? createInitialState(level),
-  );
+/** Steps are action IDs; a skill action is written `id:success` or `id:fail`. */
+function event(step: string): GameEvent {
+  const [actionId, skill] = step.split(':') as [string, SkillResult | undefined];
+  return skill ? { type: 'ACT', actionId, skill } : { type: 'ACT', actionId };
+}
+
+function play(level: LevelDefinition, steps: string[], from?: GameState): GameState {
+  return steps.reduce<GameState>((s, step) => transition(level, s, event(step)), from ?? createInitialState(level));
 }
 
 function deepFreeze<T>(v: T): T {
@@ -26,6 +31,9 @@ function deepFreeze<T>(v: T): T {
 }
 
 const level = validPrinter();
+
+const PERFECT = ['reconnect', 'clear-queue', 'open-lid:success', 'pull-steady:success', 'release-paper:success'];
+const FAILURE = ['print-again', 'print-again', 'print-again'];
 
 describe('createInitialState', () => {
   it('starts at the initial phase with full patience and no history', () => {
@@ -41,52 +49,120 @@ describe('createInitialState', () => {
 });
 
 describe('outcomes', () => {
-  it('perfect: resolves without spending any patience', () => {
-    const s = play(level, ['reconnect', 'clear-queue', 'release-paper']);
+  it('perfect: every skill check succeeds and no patience is spent', () => {
+    const s = play(level, PERFECT);
     expect(s.outcome).toBe('perfect');
     expect(s.patience).toBe(3);
     expect(s.patienceSpent).toBe(0);
-    expect(s.history).toEqual(['reconnect', 'clear-queue', 'release-paper']);
+    expect(s.history).toEqual(['reconnect', 'clear-queue', 'open-lid', 'pull-steady', 'release-paper']);
   });
 
-  it('normal: resolves after a costly self-loop retry', () => {
-    const s = play(level, ['print-again', 'reconnect', 'clear-queue', 'release-paper']);
+  it('normal: one failed skill check costs patience but the run still wins', () => {
+    const s = play(level, [
+      'reconnect',
+      'clear-queue',
+      'open-lid:fail',
+      'open-lid:success',
+      'pull-steady:success',
+      'release-paper:success',
+    ]);
     expect(s.outcome).toBe('normal');
     expect(s.patience).toBe(2);
     expect(s.patienceSpent).toBe(1);
   });
 
-  it('normal: resolves via a costly resolve action', () => {
-    const s = play(level, ['reconnect', 'add-copy', 'clear-queue', 'pull-hard']);
+  it('normal: the brute-force options win at a cost', () => {
+    const s = play(level, ['reconnect', 'clear-queue', 'slap-side', 'pull-steady:success', 'unplug']);
     expect(s.outcome).toBe('normal');
     expect(s.patience).toBe(1);
   });
 
   it('failure: patience runs out while retrying in a phase', () => {
-    const s = play(level, ['print-again', 'print-again', 'print-again']);
+    const s = play(level, FAILURE);
     expect(s.outcome).toBe('failure');
     expect(s.patience).toBe(0);
     expect(s.phaseId).toBe('offline');
   });
 
+  it('failure: patience runs out on failed skill checks in a boss round', () => {
+    const s = play(level, ['reconnect', 'clear-queue', 'open-lid:fail', 'open-lid:fail', 'open-lid:fail']);
+    expect(s.outcome).toBe('failure');
+    expect(s.phaseId).toBe('jam');
+  });
+
   it('failure takes precedence when the last patience is spent on a resolve action', () => {
-    const s = play(level, ['print-again', 'reconnect', 'add-copy', 'clear-queue', 'pull-hard']);
+    const s = play(level, [
+      'print-again',
+      'reconnect',
+      'add-copy',
+      'clear-queue',
+      'open-lid:success',
+      'pull-steady:success',
+      'unplug',
+    ]);
     expect(s.patience).toBe(0);
     expect(s.outcome).toBe('failure');
   });
 });
 
-describe('phase progression', () => {
-  it('moves offline → queue → jam and loops on retry actions', () => {
-    let s = createInitialState(level);
-    s = transition(level, s, { type: 'ACT', actionId: 'print-again' });
-    expect(s.phaseId).toBe('offline');
-    s = transition(level, s, { type: 'ACT', actionId: 'reconnect' });
-    expect(s.phaseId).toBe('queue');
-    s = transition(level, s, { type: 'ACT', actionId: 'add-copy' });
-    expect(s.phaseId).toBe('queue');
-    s = transition(level, s, { type: 'ACT', actionId: 'clear-queue' });
+describe('skill checks', () => {
+  it('success follows the action target at the action cost', () => {
+    const s = play(level, ['reconnect', 'clear-queue', 'open-lid:success']);
+    expect(s.phaseId).toBe('jam-tug');
+    expect(s.turns.at(-1)).toEqual({
+      phaseId: 'jam',
+      actionId: 'open-lid',
+      patienceCost: 0,
+      patienceAfter: 3,
+      skill: 'success',
+    });
+  });
+
+  it('failure follows onFail: its cost and its target', () => {
+    const s = play(level, ['reconnect', 'clear-queue', 'open-lid:fail']);
     expect(s.phaseId).toBe('jam');
+    expect(s.patience).toBe(2);
+    expect(s.turns.at(-1)).toEqual({
+      phaseId: 'jam',
+      actionId: 'open-lid',
+      patienceCost: 1,
+      patienceAfter: 2,
+      skill: 'fail',
+    });
+  });
+
+  it('a failed final check does not resolve', () => {
+    const s = play(level, ['reconnect', 'clear-queue', 'open-lid:success', 'pull-steady:success', 'release-paper:fail']);
+    expect(s.outcome).toBeNull();
+    expect(s.phaseId).toBe('jam-final');
+    expect(s.patience).toBe(2);
+  });
+
+  it('a skill action without a result is ignored', () => {
+    const s = play(level, ['reconnect', 'clear-queue']);
+    expect(transition(level, s, { type: 'ACT', actionId: 'open-lid' })).toBe(s);
+    expect(transition(level, s, { type: 'ACT', actionId: 'open-lid', skill: 'maybe' as SkillResult })).toBe(s);
+  });
+
+  it('a skill result on a non-skill action is ignored', () => {
+    const s0 = createInitialState(level);
+    expect(transition(level, s0, { type: 'ACT', actionId: 'reconnect', skill: 'success' })).toBe(s0);
+  });
+
+  it('non-skill turns carry no skill field', () => {
+    expect(play(level, ['reconnect']).turns[0]).not.toHaveProperty('skill');
+  });
+});
+
+describe('phase progression', () => {
+  it('moves offline → queue → jam → jam-tug → jam-final and loops on retry actions', () => {
+    const seen: string[] = [];
+    let s = createInitialState(level);
+    for (const step of ['print-again', 'reconnect', 'add-copy', 'clear-queue', 'open-lid:success', 'pull-steady:success']) {
+      s = transition(level, s, event(step));
+      seen.push(s.phaseId);
+    }
+    expect(seen).toEqual(['offline', 'queue', 'queue', 'jam', 'jam-tug', 'jam-final']);
     expect(s.outcome).toBeNull();
   });
 
@@ -98,15 +174,62 @@ describe('phase progression', () => {
     ]);
   });
 
-  it('maps phase position to escalation intensity', () => {
-    const s0 = createInitialState(level);
-    const s1 = play(level, ['reconnect']);
-    const s2 = play(level, ['reconnect', 'clear-queue']);
-    expect([getIntensity(level, s0), getIntensity(level, s1), getIntensity(level, s2)]).toEqual([
-      'calm',
-      'warning',
-      'critical',
-    ]);
+  it('uses declared intensity: calm, warning, then critical for every boss round', () => {
+    const states = [
+      [],
+      ['reconnect'],
+      ['reconnect', 'clear-queue'],
+      ['reconnect', 'clear-queue', 'open-lid:success'],
+      ['reconnect', 'clear-queue', 'open-lid:success', 'pull-steady:success'],
+    ].map((steps) => getIntensity(level, play(level, steps)));
+    expect(states).toEqual(['calm', 'warning', 'critical', 'critical', 'critical']);
+  });
+});
+
+describe('boss health', () => {
+  it('is null before the boss, drops one share per round reached, and is 0 after a win', () => {
+    const values = [
+      [],
+      ['reconnect'],
+      ['reconnect', 'clear-queue'],
+      ['reconnect', 'clear-queue', 'open-lid:success'],
+      ['reconnect', 'clear-queue', 'open-lid:success', 'pull-steady:success'],
+      PERFECT,
+    ].map((steps) => getBossHealth(level, play(level, steps)));
+    expect(values[0]).toBeNull();
+    expect(values[1]).toBeNull();
+    expect(values[2]).toBe(1);
+    expect(values[3]).toBeCloseTo(2 / 3);
+    expect(values[4]).toBeCloseTo(1 / 3);
+    expect(values[5]).toBe(0);
+  });
+
+  it('does not drop on a failed check, and stays where it was after a failure ending', () => {
+    const s = play(level, ['reconnect', 'clear-queue', 'open-lid:fail']);
+    expect(getBossHealth(level, s)).toBe(1);
+    const lost = play(level, ['reconnect', 'clear-queue', 'open-lid:fail', 'open-lid:fail', 'open-lid:fail']);
+    expect(getBossHealth(level, lost)).toBe(1);
+  });
+});
+
+describe('protocol v0.1 level (backward compatibility)', () => {
+  const result = validateLevel(structuredClone(printerV01), SCENE_CATALOG);
+  if (!result.ok) throw new Error('v0.1 fixture invalid');
+  const v01 = result.value;
+
+  it('plays exactly as before: perfect, normal and failure precedence', () => {
+    expect(play(v01, ['reconnect', 'clear-queue', 'release-paper']).outcome).toBe('perfect');
+    expect(play(v01, ['print-again', 'reconnect', 'clear-queue', 'release-paper']).outcome).toBe('normal');
+    const last = play(v01, ['print-again', 'reconnect', 'add-copy', 'clear-queue', 'pull-hard']);
+    expect([last.patience, last.outcome]).toEqual([0, 'failure']);
+  });
+
+  it('derives intensity from phase position and treats the last phase as the boss', () => {
+    expect(getIntensity(v01, createInitialState(v01))).toBe('calm');
+    expect(getIntensity(v01, play(v01, ['reconnect']))).toBe('warning');
+    expect(getIntensity(v01, play(v01, ['reconnect', 'clear-queue']))).toBe('critical');
+    expect(getBossHealth(v01, play(v01, ['reconnect', 'clear-queue']))).toBe(1);
+    expect(getBossHealth(v01, play(v01, ['reconnect', 'clear-queue', 'release-paper']))).toBe(0);
   });
 });
 
@@ -131,7 +254,8 @@ describe('invalid actions', () => {
 
   it('ignores actions that belong to another phase', () => {
     const s0 = createInitialState(level);
-    expect(transition(level, s0, { type: 'ACT', actionId: 'release-paper' })).toBe(s0);
+    expect(transition(level, s0, { type: 'ACT', actionId: 'unplug' })).toBe(s0);
+    expect(transition(level, s0, { type: 'ACT', actionId: 'release-paper', skill: 'success' })).toBe(s0);
   });
 
   it('ignores unknown event types', () => {
@@ -147,13 +271,13 @@ describe('invalid actions', () => {
 
 describe('terminal state protection', () => {
   it.each([
-    ['perfect', ['reconnect', 'clear-queue', 'release-paper']],
-    ['failure', ['print-again', 'print-again', 'print-again']],
+    ['perfect', PERFECT],
+    ['failure', FAILURE],
   ])('after %s, further actions are ignored and nothing is offered', (_, path) => {
     const end = play(level, path);
     expect(getAvailableActions(level, end)).toEqual([]);
-    for (const actionId of ['reconnect', 'print-again', 'clear-queue', 'release-paper', 'pull-hard']) {
-      expect(transition(level, end, { type: 'ACT', actionId })).toBe(end);
+    for (const step of ['reconnect', 'print-again', 'clear-queue', 'release-paper:success', 'unplug', 'pull-hard']) {
+      expect(transition(level, end, event(step))).toBe(end);
     }
   });
 });
@@ -161,20 +285,21 @@ describe('terminal state protection', () => {
 describe('restart', () => {
   it('restores the initial state after any outcome', () => {
     for (const path of [
-      ['reconnect', 'clear-queue', 'release-paper'],
-      ['print-again', 'reconnect', 'clear-queue', 'pull-hard'],
-      ['print-again', 'print-again', 'print-again'],
+      PERFECT,
+      ['print-again', 'reconnect', 'clear-queue', 'slap-side', 'pull-steady:success', 'release-paper:success'],
+      FAILURE,
     ]) {
       const end = play(level, path);
+      expect(end.outcome).not.toBeNull();
       expect(transition(level, end, { type: 'RESTART' })).toEqual(createInitialState(level));
     }
   });
 
   it('works mid-run and a new run is independent of the previous one', () => {
-    const mid = play(level, ['print-again', 'reconnect']);
+    const mid = play(level, ['print-again', 'reconnect', 'clear-queue', 'open-lid:fail']);
     const fresh = transition(level, mid, { type: 'RESTART' });
     expect(fresh).toEqual(createInitialState(level));
-    expect(play(level, ['reconnect', 'clear-queue', 'release-paper'], fresh).outcome).toBe('perfect');
+    expect(play(level, PERFECT, fresh).outcome).toBe('perfect');
   });
 });
 
@@ -189,7 +314,7 @@ describe('purity', () => {
   });
 
   it('is deterministic for the same inputs', () => {
-    const path = ['print-again', 'reconnect', 'add-copy', 'clear-queue', 'release-paper'];
+    const path = ['print-again', 'reconnect', 'add-copy', 'clear-queue', 'open-lid:fail', 'slap-side', 'pull-steady:success'];
     expect(play(level, path)).toEqual(play(level, path));
   });
 });

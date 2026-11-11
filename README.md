@@ -16,22 +16,25 @@ An open-source browser game that turns everyday frustrations into boss fights.
 
 ### 当前状态
 
-第一个可运行版本：首关「地狱打印机」可完整游玩，已部署到 GitHub Pages（<https://lachenxuanyu.com/dailyboss/>）。已有浏览器回归测试与 CI；尚未经过真人试玩。
+第一个可运行版本：首关「地狱打印机」可完整游玩，已部署到 GitHub Pages（<https://lachenxuanyu.com/dailyboss/>）。已有浏览器回归测试与 CI。试玩 #1 反馈「按完按钮什么都没发生」，因此迭代 1 把卡纸阶段改成了 3 回合的 Boss 战（见下文与 [试玩记录](docs/PLAYTEST.md)）；新版本还需要试玩 #2 验证。
 
 **已实现并验证**
 
 - React + TypeScript + Vite 工程，依赖由 `package-lock.json` 锁定。
 - 关卡 JSON 运行时校验，错误以「位置 + 原因」的可读列表展示。
-- 纯函数规则引擎（`useReducer` 接入）：三个故障阶段、完美／普通／失败结局、重开、无效行动与终局保护、耐心归零优先判负。
+- 纯函数规则引擎（`useReducer` 接入）：离线 → 队列 → 卡纸 Boss 战（3 回合），完美／普通／失败结局、重开、无效行动与终局保护、耐心归零优先判负。
+- 协议 v0.2（向后兼容）：行动反馈文案、技巧判定（时机／连打，失败走 `onFail`）、阶段强度；旧的 v0.1 关卡仍可加载。
+- Boss 战演出：「BOSS 出现」标题卡、Boss 血条、扣耐心时的反击（纸张飞出、震屏、「−1 耐心」）、每回合递增的损伤、胜利打印纸。
+- 技巧小游戏：看准时机按下（空格／回车／点击）和 3 秒内连打 10 次；Esc 取消。辅助模式让技巧判定自动成功。
 - DOM 操作界面：阶段、目标、耐心、行动、每步反馈、操作记录、结算面板；数字键选择行动、R 重开。
 - 界面随故障逐步异变（警示色、扫描线、轻微扭曲），尊重「减少动态效果」设置。
 - Three.js／React Three Fiber 几何体打印机，按场景注册表加载；WebGL 不可用、上下文丢失或手动切换时使用简化显示，游戏照常可玩。
 - 生产构建使用 GitHub Pages 子路径 `/dailyboss/`。
-- Playwright 浏览器测试（21 项）针对 `/dailyboss/` 下的生产构建运行，覆盖三种结局、键盘操作、真实 WebGL、上下文丢失、无 WebGL、手机横竖屏视口与减少动态效果。
+- Playwright 浏览器测试（36 项）针对 `/dailyboss/` 下的生产构建运行，覆盖三种结局、两种小游戏（用 Playwright 时钟精确控制时间）、键盘操作、真实 WebGL、上下文丢失、无 WebGL、手机横竖屏视口与减少动态效果。
 - 修复：手动切换「简化显示」时误报「3D 渲染中断」。
-- GitHub Pages 部署：`main` 上的 CI 与部署已在 GitHub 上成功运行（2026-11-10），全部 21 项浏览器测试在线上站点同样通过。
+- GitHub Pages 部署：`main` 上的 CI 与部署已在 GitHub 上成功运行（2026-11-10），当时全部 21 项浏览器测试在线上站点同样通过（迭代 1 合并前线上仍是旧版本）。
 
-**尚未完成**：真人试玩与数值调整（2–4 分钟目标）、结局分享、真机测试、动画人工验收。详见 [开发路线](docs/ROADMAP.md)。
+**尚未完成**：迭代 1 的试玩 #2 与数值调整（2–4 分钟目标）、结局分享、音效、真机测试、动画人工验收。详见 [开发路线](docs/ROADMAP.md)。
 
 ### 运行
 
@@ -41,7 +44,7 @@ An open-source browser game that turns everyday frustrations into boss fights.
 npm install
 npm run dev          # 开发服务器，http://localhost:5173/
 npm run typecheck    # TypeScript 类型检查
-npm test             # Vitest：规则、配置校验与反馈文案
+npm test             # Vitest：规则、配置校验、反馈文案与小游戏规则
 npm run build        # 类型检查 + 生产构建，输出到 dist/（base 为 /dailyboss/）
 npm run preview      # 预览构建结果，http://localhost:4173/dailyboss/
 npm run check        # 类型检查 + 测试 + 构建
@@ -50,7 +53,7 @@ npx playwright install chromium   # 首次运行浏览器测试前安装 Chromiu
 npm run test:e2e     # 生产构建 + Playwright 浏览器测试（/dailyboss/）
 ```
 
-调试参数：`?render=simple` 直接使用简化显示；`?level=<id>` 选择已登记的关卡（未知 ID 会显示配置错误页）。如需其他部署路径，可设置 `BASE_PATH=/其他路径/ npm run build`。
+调试参数：`?render=simple` 直接使用简化显示；`?assist=1` 开启辅助模式（技巧判定自动成功，也可在界面右下角切换）；`?level=<id>` 选择已登记的关卡（未知 ID 会显示配置错误页）。如需其他部署路径，可设置 `BASE_PATH=/其他路径/ npm run build`。
 
 ### 自动化测试与 CI
 
@@ -82,12 +85,12 @@ npm run test:e2e     # 生产构建 + Playwright 浏览器测试（/dailyboss/�
 | 目标 | 打印一张纸 |
 | 单局 | 目标 2–4 分钟，待试玩验证 |
 | 初始资源 | 耐心值 3 |
-| 流程 | 离线 → 队列故障 → 卡纸 → 打印成功 |
+| 流程 | 离线 → 队列故障 → 卡纸 Boss 战（盖板 → 拔河 → 最后两厘米）→ 打印成功 |
 | 结局 | 完美、普通、失败；支持重开 |
 | 风格 | 普通软件界面逐渐异变成 Boss 战 |
 | 平台 | 电脑与手机浏览器，目标部署 GitHub Pages |
 
-首版不包含 AI、账号、后端、数据库、多人模式、排行榜、编辑器或复杂动作战斗。
+首版不包含 AI、账号、后端、数据库、多人模式、排行榜、编辑器或复杂动作战斗。Boss 战的小游戏只是两种简单的技巧判定，规则仍由纯函数引擎决定。
 
 ### 固定框架，灵活内容
 
@@ -99,7 +102,7 @@ npm run test:e2e     # 生产构建 + Playwright 浏览器测试（/dailyboss/�
 | 3D 场景适配接口 | 各 Boss 的场景组件与动画 |
 | 重开与简化显示机制 | 新关卡内容 |
 
-同类玩法优先改 JSON；新的 3D Boss 需要场景组件。拖拽、限时操作等超出既有协议的玩法需要扩展引擎，不承诺只改配置就能实现任意玩法。
+同类玩法优先改 JSON；新的 3D Boss 需要场景组件。时机与连打判定可直接在 JSON 中通过 `skill` 使用；拖拽、物理等超出既有协议的玩法需要扩展引擎，不承诺只改配置就能实现任意玩法。
 
 **新增同类关卡**：在 `content/levels/` 添加 JSON，并在 `src/app/levels.ts` 登记；若需要新 Boss 场景，在 `src/scenes/catalog.ts` 声明 sceneId 与支持的 cue，并在 `src/scenes/registry.ts` 注册组件。视觉风格集中在 `src/styles/tokens.css` 的 CSS 变量中。
 
@@ -143,22 +146,37 @@ An absurd, browser-playable boss fight about everyday life. It starts as an ordi
 
 ### Status
 
-First runnable version. Level 1, "Printer From Hell" (地狱打印机), is fully playable and deployed to GitHub Pages at <https://lachenxuanyu.com/dailyboss/>. Browser regression tests and CI are in place. It hasn't been playtested with real players yet. The player-facing text is in Chinese.
+First runnable version. Level 1, "Printer From Hell" (地狱打印机), is fully playable and deployed to GitHub Pages at <https://lachenxuanyu.com/dailyboss/>. Browser regression tests and CI are in place. Playtest #1 found that "nothing happened" after the buttons were pressed. In response, Iteration 1 turns the paper-jam phase into a 3-round boss fight (see below and the [playtest log](docs/PLAYTEST.md)). The new version still needs playtest #2. The player-facing text is in Chinese.
 
 **Implemented and verified**
 
 - React + TypeScript + Vite project, dependencies pinned by `package-lock.json`.
 - Runtime validation of level JSON, with readable errors that give the location and the reason.
-- Pure rule engine wired through `useReducer`: three fault phases, perfect/normal/failure endings, restart, protection against invalid actions and actions after the game ends, and failure taking precedence when patience hits zero.
+- Pure rule engine wired through `useReducer`: offline → queue → a 3-round paper-jam boss fight. It handles perfect/normal/failure endings, restart, invalid actions and actions after the game ends. Failure takes precedence when patience hits zero.
+- Protocol v0.2, backward compatible: it adds per-action feedback text, skill checks (timing or mash; a failure follows `onFail`), and a per-phase intensity. Old v0.1 levels still load.
+- Boss-fight presentation:
+  - a "BOSS 出现" title card and a boss health bar;
+  - counterattacks when you lose patience: flying paper, screen shake and a floating "−1 耐心";
+  - damage that grows each round, and a victory print.
+- Skill mini-games: press when the needle is in the green zone (Space / Enter / tap), or tap 10 times within 3 seconds. Escape cancels. Assist mode makes every skill check succeed.
 - DOM interface: phase, objective, patience, actions, feedback after every step, action log, and result panel. Number keys pick actions and R restarts.
 - The interface degrades step by step as faults escalate (warning colors, scanlines, slight distortion) and respects `prefers-reduced-motion`.
 - A primitive-geometry printer built with Three.js / React Three Fiber and loaded through a scene registry. A simplified DOM display takes over when WebGL is unavailable, when the context is lost, or when the player turns it on. The game stays fully playable either way.
 - Production builds use the GitHub Pages subpath `/dailyboss/`.
-- 21 Playwright browser tests run against the production build under `/dailyboss/`. They cover all three endings, keyboard play, real WebGL, context loss, no WebGL, mobile portrait and landscape viewports, and reduced motion.
+- 36 Playwright browser tests run against the production build under `/dailyboss/`. They cover:
+  - all three endings and keyboard play;
+  - both mini-games, with exact timing from Playwright's fake clock;
+  - real WebGL, context loss and no WebGL;
+  - mobile portrait and landscape viewports, and reduced motion.
 - Fixed: manually switching to the simplified display no longer reports a false "3D rendering interrupted" warning.
-- GitHub Pages deployment: CI and the deploy job ran successfully on `main` on GitHub (2026-11-10), and all 21 browser tests also pass against the live site.
+- GitHub Pages deployment: CI and the deploy job ran successfully on `main` on GitHub (2026-11-10), and the 21 browser tests of that version also passed against the live site. The live site keeps running the old version until Iteration 1 is merged.
 
-**Not done yet:** playtesting and balance (2–4 minute target), sharing results, real-device testing, and manual approval of the animations. See the [roadmap](docs/ROADMAP.md).
+**Not done yet:**
+- playtest #2 of Iteration 1, and balance against the 2–4 minute target;
+- sharing results;
+- sound;
+- real-device testing;
+- manual approval of the animations. See the [roadmap](docs/ROADMAP.md).
 
 ### Running it
 
@@ -168,7 +186,7 @@ Requires Node.js 20.19+ (developed with Node 24 / npm 11).
 npm install
 npm run dev          # dev server at http://localhost:5173/
 npm run typecheck    # TypeScript type check
-npm test             # Vitest: rules, config validation, feedback text
+npm test             # Vitest: rules, config validation, feedback text, mini-game rules
 npm run build        # typecheck + production build into dist/ (base /dailyboss/)
 npm run preview      # serve the build at http://localhost:4173/dailyboss/
 npm run check        # typecheck + tests + build
@@ -177,7 +195,7 @@ npx playwright install chromium   # once, before the first browser test run
 npm run test:e2e     # production build + Playwright browser tests (/dailyboss/)
 ```
 
-Debug parameters: `?render=simple` starts in the simplified display. `?level=<id>` picks a registered level; an unknown ID shows the config error page. To deploy under a different path, run `BASE_PATH=/other/ npm run build`.
+Debug parameters: `?render=simple` starts in the simplified display. `?assist=1` turns on assist mode, where skill checks succeed automatically (there is also a toggle at the bottom right). `?level=<id>` picks a registered level; an unknown ID shows the config error page. To deploy under a different path, run `BASE_PATH=/other/ npm run build`.
 
 ### Tests and CI
 
@@ -206,12 +224,12 @@ The site is at **<https://lachenxuanyu.com/dailyboss/>**. The account has a cust
 `content/levels/*.json` → `validateLevel` → `LevelDefinition` → pure `transition()` → `GameState` → DOM UI + 3D scene.
 
 - **Content** (`content/levels/`): phases, actions, costs, and all level text. React components hold no level dialogue.
-- **Game** (`src/game/`): protocol types, validation, the pure engine, and the `useGame` hook. There are no timers, randomness, or rendering, so animation never decides an outcome.
+- **Game** (`src/game/`): protocol types, validation, the pure engine, and the `useGame` hook. There are no timers, randomness, or rendering, so animation never decides an outcome. Skill checks are timed in the UI with `performance.now()` timestamps, and only the result (`success` or `fail`) reaches the engine.
 - **UI** (`src/ui/`): generic, reusable panels and the framework-level labels.
 - **Scenes** (`src/scenes/`): a whitelist of `sceneId` → component, the printer scene, and the fallback display. Scenes only read game state.
 - **Styles** (`src/styles/tokens.css`): colors, spacing, type, borders, and motion as CSS variables. Escalation only re-points these tokens.
 
-**Adding a level with the same mechanics:** add a JSON file under `content/levels/` and register it in `src/app/levels.ts`. A new boss scene also needs its cues declared in `src/scenes/catalog.ts` and a component in `src/scenes/registry.ts`. New mechanics (drag, timers, physics) need explicit engine changes; there is no scripting system.
+**Adding a level with the same mechanics:** add a JSON file under `content/levels/` and register it in `src/app/levels.ts`. A new boss scene also needs its cues declared in `src/scenes/catalog.ts` and a component in `src/scenes/registry.ts`. Timing and mash checks are available from JSON through `skill`. Other new mechanics (drag, physics) need explicit engine changes; there is no scripting system.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (Chinese) for the full protocol and rules.
 
@@ -223,9 +241,9 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (Chinese) for the full protocol
 | Goal | Print one page |
 | Session | 2–4 minutes target, pending playtests |
 | Starting resource | Patience 3 |
-| Flow | Offline → queue failure → paper jam → printed |
+| Flow | Offline → queue failure → paper-jam boss fight (lid → tug-of-war → last two centimetres) → printed |
 | Endings | Perfect, normal, failure; restart supported |
 | Style | An ordinary utility UI mutating into a boss fight |
 | Platforms | Desktop and mobile browsers; GitHub Pages target |
 
-Out of scope for v1: AI, accounts, backend, database, multiplayer, leaderboards, editors, or complex action combat.
+Out of scope for v1: AI, accounts, backend, database, multiplayer, leaderboards, editors, or complex action combat. The boss fight's mini-games are two simple skill checks; the pure engine still decides every rule.

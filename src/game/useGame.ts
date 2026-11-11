@@ -1,8 +1,9 @@
 import { useCallback, useMemo, useReducer } from 'react';
-import type { GameEvent, GameState, LevelDefinition } from './contracts';
+import type { GameEvent, GameState, LevelDefinition, SkillResult } from './contracts';
 import {
   createInitialState,
   getAvailableActions,
+  getBossHealth,
   getCurrentPhase,
   getIntensity,
   getPhaseProgress,
@@ -17,7 +18,11 @@ export function useGame(level: LevelDefinition) {
   );
   const [state, dispatch] = useReducer(reducer, level, createInitialState);
 
-  const act = useCallback((actionId: string) => dispatch({ type: 'ACT', actionId }), []);
+  const act = useCallback(
+    (actionId: string, skill?: SkillResult) =>
+      dispatch(skill ? { type: 'ACT', actionId, skill } : { type: 'ACT', actionId }),
+    [],
+  );
   const restart = useCallback(() => dispatch({ type: 'RESTART' }), []);
 
   const derived = useMemo(
@@ -26,6 +31,7 @@ export function useGame(level: LevelDefinition) {
       actions: getAvailableActions(level, state),
       intensity: getIntensity(level, state),
       progress: getPhaseProgress(level, state),
+      bossHealth: getBossHealth(level, state),
       lastTurn: state.turns.at(-1) ?? null,
     }),
     [level, state],

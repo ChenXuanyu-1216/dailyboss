@@ -1,4 +1,4 @@
-import { expect, test } from './fixtures';
+import { ASSIST, expect, test } from './fixtures';
 
 const viewports = [
   { name: 'mobile portrait 390×844', width: 390, height: 844 },
@@ -11,7 +11,7 @@ for (const vp of viewports) {
     test.use({ viewport: { width: vp.width, height: vp.height }, isMobile: true, hasTouch: true });
 
     test('no horizontal overflow through a full run, touch targets ≥ 44px', async ({ game, page }) => {
-      await game.open();
+      await game.open(ASSIST);
       await game.expectNoHorizontalOverflow();
 
       const box = await game.actionButtons.first().boundingBox();
@@ -23,7 +23,10 @@ for (const vp of viewports) {
       await expect(game.app).toHaveAttribute('data-intensity', 'critical');
       await game.expectNoHorizontalOverflow();
 
-      await game.action('pull-hard').tap();
+      await expect(game.bossBar).toBeVisible();
+      await game.action('slap-side').tap();
+      await game.action('pull-steady').tap();
+      await game.action('release-paper').tap();
       await game.expectOutcome('normal');
       await game.expectNoHorizontalOverflow();
 
@@ -31,6 +34,19 @@ for (const vp of viewports) {
       await restart.scrollIntoViewIfNeeded();
       await restart.tap();
       await game.expectInitialState();
+    });
+
+    test('the skill check fits and its button is a large touch target', async ({ game }) => {
+      await game.open();
+      await game.action('reconnect').tap();
+      await game.action('clear-queue').tap();
+      await game.action('open-lid').tap();
+      await expect(game.skillPanel).toBeVisible();
+      await game.expectNoHorizontalOverflow();
+      const box = await game.skillHit.boundingBox();
+      expect(box?.height ?? 0).toBeGreaterThanOrEqual(48);
+      await game.skillHit.tap();
+      await expect(game.skillVerdict).not.toHaveText('');
     });
   });
 }

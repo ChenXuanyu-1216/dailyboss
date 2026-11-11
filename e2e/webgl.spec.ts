@@ -1,4 +1,4 @@
-import { expect, requireWebGL, test } from './fixtures';
+import { ASSIST, BOSS_SKILLS, ROUND_TITLES, expect, requireWebGL, test } from './fixtures';
 
 /**
  * Tests tagged @webgl need a real WebGL context (SwiftShader in headless Chromium).
@@ -7,7 +7,7 @@ import { expect, requireWebGL, test } from './fixtures';
 
 test.describe('3D scene @webgl', () => {
   test.beforeEach(async ({ game }) => {
-    await game.page.goto('./');
+    await game.page.goto(`./${ASSIST}`);
     await requireWebGL(game);
   });
 
@@ -55,7 +55,7 @@ test.describe('3D scene @webgl', () => {
       await expect(game.log).toHaveCount(2);
     }
 
-    await game.act('clear-queue', 'release-paper');
+    await game.act('clear-queue', ...BOSS_SKILLS);
     await game.expectOutcome('normal');
   });
 
@@ -71,21 +71,35 @@ test.describe('3D scene @webgl', () => {
 
     // Still playable in the fallback.
     await game.act('clear-queue');
-    await expect(game.phaseTitle).toHaveText('最终阶段：卡纸');
+    await expect(game.phaseTitle).toHaveText(ROUND_TITLES[0]);
 
     // Retry 3D: a fresh renderer comes up with state preserved.
     await game.simplifiedToggle.click();
     await expect(game.scene).toHaveAttribute('data-render', '3d');
     await expect(game.canvas).toBeVisible();
     await expect(game.sceneNote).toHaveText('');
-    await expect(game.phaseTitle).toHaveText('最终阶段：卡纸');
+    await expect(game.phaseTitle).toHaveText(ROUND_TITLES[0]);
 
     // And genuine loss is still detected on the new renderer.
     await game.loseWebGLContext();
     await expect(game.sceneNote).toHaveText('3D 渲染中断，已切换为简化显示。');
 
-    await game.act('release-paper');
+    await game.act(...BOSS_SKILLS);
     await game.expectOutcome('perfect');
+  });
+
+  test('boss rounds and counterattacks play in 3D without errors or context loss', async ({ game, page }) => {
+    await expect(game.canvas).toBeVisible();
+    await game.watchCanvasContextLoss();
+    await game.act('reconnect', 'clear-queue', 'slap-side', 'pull-steady');
+    await expect(game.phaseTitle).toHaveText(ROUND_TITLES[2]);
+    await expect(game.hurtPop).toHaveCount(0); // the last turn cost nothing
+    await game.expectBossHealth(33);
+    await game.act('release-paper');
+    await game.expectOutcome('normal');
+    await game.nextFrames();
+    await expect(game.scene).toHaveAttribute('data-render', '3d');
+    expect(await page.evaluate(() => (window as unknown as { __dbContextLost: boolean }).__dbContextLost)).toBe(false);
   });
 
   test('restart resets the scene inputs without remounting the renderer', async ({ game, page }) => {
@@ -108,7 +122,7 @@ test.describe('simplified display by URL', () => {
     page.on('request', (r) => {
       if (/PrinterScene-/.test(r.url())) sceneRequests.push(r.url());
     });
-    await game.open('?render=simple');
+    await game.open(`?render=simple&${ASSIST.slice(1)}`);
     await expect(game.scene).toHaveAttribute('data-render', 'simple');
     await expect(game.canvas).toHaveCount(0);
     await expect(page.getByRole('img', { name: /打印机示意：打印机离线/ })).toBeVisible();
@@ -117,7 +131,7 @@ test.describe('simplified display by URL', () => {
 
     await game.act('reconnect', 'clear-queue');
     await expect(page.locator('.fallback')).toHaveAttribute('data-cue', 'jam');
-    await game.act('release-paper');
+    await game.act(...BOSS_SKILLS);
     await game.expectOutcome('perfect');
     await expect(page.locator('.fallback')).toHaveAttribute('data-outcome', 'perfect');
     expect(sceneRequests).toEqual([]);

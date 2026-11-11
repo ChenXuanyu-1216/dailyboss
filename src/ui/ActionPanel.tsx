@@ -6,7 +6,10 @@ interface Props {
   onAct: (actionId: string) => void;
 }
 
-/** Renders the current phase's actions. Costs stay hidden until chosen — that's the game. */
+/**
+ * Renders the current phase's actions. Costs stay hidden until chosen — that's the game.
+ * Actions with a skill check carry a badge; choosing one opens the check (see GameShell).
+ */
 export function ActionPanel({ actions, onAct }: Props) {
   return (
     <section className="panel actions" aria-labelledby="actions-heading">
@@ -20,6 +23,7 @@ export function ActionPanel({ actions, onAct }: Props) {
             type="button"
             className="btn btn--action"
             data-action-id={action.id}
+            data-skill={action.skill?.type}
             onClick={() => onAct(action.id)}
             aria-keyshortcuts={i < 9 ? String(i + 1) : undefined}
           >
@@ -29,6 +33,12 @@ export function ActionPanel({ actions, onAct }: Props) {
               </kbd>
             )}
             <span className="btn__text">{action.label}</span>
+            {action.skill && (
+              <span className="btn__badge">
+                {UI.skillBadge}
+                <span className="visually-hidden">：{action.skill.type === 'timing' ? UI.skillTimingTitle : UI.skillMashTitle}</span>
+              </span>
+            )}
           </button>
         ))}
       </div>

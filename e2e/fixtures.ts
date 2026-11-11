@@ -53,6 +53,12 @@ export const test = base.extend<Fixtures>({
 
 export { expect };
 
+/** Query that turns on assist mode: every skill check succeeds instantly (no mini-game). */
+export const ASSIST = '?assist=1';
+/** The skill action of each boss round, in order: jam → jam-tug → jam-final. */
+export const BOSS_SKILLS = ['open-lid', 'pull-steady', 'release-paper'] as const;
+export const ROUND_TITLES = ['第一回合：盖板', '第二回合：拔河', '最终回合：最后两厘米'] as const;
+
 export class GamePage {
   readonly app: Locator;
   readonly phaseTitle: Locator;
@@ -68,8 +74,24 @@ export class GamePage {
   readonly simplifiedToggle: Locator;
   readonly headerRestart: Locator;
   readonly lowPatienceWarning: Locator;
+  readonly skillPanel: Locator;
+  readonly skillHit: Locator;
+  readonly skillVerdict: Locator;
+  readonly bossBar: Locator;
+  readonly bossCard: Locator;
+  readonly hurtPop: Locator;
+  readonly victoryPrint: Locator;
+  readonly assistToggle: Locator;
 
   constructor(readonly page: Page) {
+    this.skillPanel = page.locator('.skill');
+    this.skillHit = page.getByTestId('skill-hit');
+    this.skillVerdict = page.locator('.skill__verdict');
+    this.bossBar = page.getByRole('progressbar', { name: 'Boss 血量' });
+    this.bossCard = page.getByTestId('boss-card');
+    this.hurtPop = page.getByTestId('hurt-pop');
+    this.victoryPrint = page.getByTestId('victory-print');
+    this.assistToggle = page.getByRole('button', { name: '辅助模式' });
     this.app = page.locator('.app');
     this.phaseTitle = page.locator('#phase-title');
     this.patience = page.locator('.patience__value');
@@ -116,6 +138,12 @@ export class GamePage {
     await expect(this.log).toHaveCount(0);
     await expect(this.resultTitle).toHaveCount(0);
     await expect(this.feedback).toHaveText('选择一个操作开始。');
+    await expect(this.bossBar).toHaveCount(0);
+    await expect(this.skillPanel).toHaveCount(0);
+  }
+
+  async expectBossHealth(percent: number) {
+    await expect(this.bossBar).toHaveAttribute('aria-valuenow', String(percent));
   }
 
   async expectFocusOnFirstAction() {
