@@ -22,9 +22,7 @@ test.describe('endings', () => {
     await game.act('clear-queue');
     await expect(game.phaseTitle).toHaveText(ROUND_TITLES[0]);
     await expect(game.app).toHaveAttribute('data-intensity', 'critical');
-    await expect(game.bossCard).toBeVisible();
-    await expect(game.bossCard).toContainText('BOSS 出现');
-    await expect(game.bossCard).toContainText('地狱打印机');
+    // The short-lived title card is checked with a paused clock in skills.spec.ts.
     await game.expectBossHealth(100);
     await expect(game.action('open-lid')).toHaveAttribute('data-skill', 'timing');
 

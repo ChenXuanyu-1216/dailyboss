@@ -139,6 +139,8 @@ test('the boss title card appears on entering the first round and then clears', 
   await expect(game.bossCard).toHaveCount(0);
   await game.act('clear-queue');
   await expect(game.bossCard).toBeVisible();
+  await expect(game.bossCard).toContainText('BOSS 出现');
+  await expect(game.bossCard).toContainText('地狱打印机');
   await expect(game.bossCard).toHaveCSS('pointer-events', 'none');
   await page.clock.runFor(1900);
   await expect(game.bossCard).toHaveCount(0);
