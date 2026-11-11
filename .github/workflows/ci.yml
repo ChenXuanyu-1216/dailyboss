@@ -22,6 +22,11 @@ jobs:
   test:
     name: Typecheck, unit tests, build, browser tests
     runs-on: ubuntu-latest
+    # Match package-lock.json's Playwright version. Browsers and OS dependencies
+    # are included, so CI does not depend on Ubuntu package mirrors at runtime.
+    container:
+      image: mcr.microsoft.com/playwright:v1.65.0-noble
+      options: --ipc=host
     timeout-minutes: 25
     steps:
       - name: Check out
@@ -46,23 +51,6 @@ jobs:
 
       - name: Production build (base /dailyboss/)
         run: npm run build:app
-
-      - name: Install Playwright Chromium
-        # Package mirrors and the browser CDN can fail transiently. Bound each attempt
-        # so a DNS outage cannot consume the entire job before we get to retry.
-        timeout-minutes: 10
-        run: |
-          for attempt in 1 2 3; do
-            if timeout 180s npx playwright install --with-deps chromium; then
-              exit 0
-            fi
-            if [ "$attempt" -eq 3 ]; then
-              echo "Playwright installation failed after 3 attempts" >&2
-              exit 1
-            fi
-            echo "Playwright installation attempt $attempt failed; retrying in 10 seconds"
-            sleep 10
-          done
 
       - name: Browser tests (Playwright, against dist/)
         run: npm run test:e2e:prebuilt
