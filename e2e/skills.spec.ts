@@ -82,6 +82,37 @@ test.describe('timing check', () => {
     await game.expectPatience(3);
     await game.expectFocusOnFirstAction();
   });
+
+  for (const key of ['Enter', 'Space']) {
+    test(`${key} activates the focused cancel button without taking a turn`, async ({ game, page }) => {
+      await openPaused(game, page);
+      await game.act('reconnect', 'clear-queue', 'open-lid');
+      await expect(game.skillHit).toBeFocused();
+      await page.keyboard.press('Tab');
+      await expect(game.skillPanel.getByRole('button', { name: '先不了（Esc）' })).toBeFocused();
+      await page.clock.runFor(100);
+      await page.keyboard.press(key);
+      await page.clock.runFor(5000); // A cancelled check must not resolve later.
+      await expect(game.skillPanel).toHaveCount(0);
+      await expect(game.phaseTitle).toHaveText(ROUND_TITLES[0]);
+      await expect(game.log).toHaveCount(2);
+      await game.expectPatience(3);
+      await game.expectFocusOnFirstAction();
+    });
+
+    test(`${key} activates the focused assist toggle without hitting the challenge`, async ({ game, page }) => {
+      await openPaused(game, page);
+      await game.act('reconnect', 'clear-queue', 'open-lid');
+      await game.assistToggle.focus();
+      await page.clock.runFor(100);
+      await page.keyboard.press(key);
+      await expect(game.assistToggle).toHaveAttribute('aria-pressed', 'true');
+      await expect(game.skillVerdict).toHaveText('');
+      await expect(game.skillPanel).toBeVisible();
+      await expect(game.log).toHaveCount(2);
+      await game.expectPatience(3);
+    });
+  }
 });
 
 /** Mash: 10 taps within 3 s of the first tap. */

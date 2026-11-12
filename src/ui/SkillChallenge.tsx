@@ -51,8 +51,8 @@ export function SkillChallenge({ action, reducedMotion, onResolve, onCancel }: P
   const mash = useMash(type === 'mash', finish);
   const hit = type === 'timing' ? timing.press : mash.tap;
 
-  // Keyboard: native button activation handles Space / Enter when the button has focus;
-  // elsewhere they are forwarded. Auto-repeat never counts. Escape cancels.
+  // Keep native activation for focused controls; forward Space / Enter only
+  // from non-interactive targets. Auto-repeat never counts. Escape cancels.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -65,6 +65,11 @@ export function SkillChallenge({ action, reducedMotion, onResolve, onCancel }: P
         if (e.repeat) e.preventDefault();
         return;
       }
+      if (
+        e.target instanceof HTMLElement &&
+        (e.target.isContentEditable ||
+          e.target.closest('button, a[href], input, textarea, select, summary, [role="button"], [role="link"]'))
+      ) return;
       e.preventDefault();
       if (!e.repeat) hit();
     };
