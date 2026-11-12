@@ -31,6 +31,9 @@ interface Pose {
   zoom: number;
 }
 
+/** Flight time of the counterattack paper. */
+const SHOT_SECONDS = 0.55;
+
 const BASE: Pose = {
   led: '#8a8f98',
   ledHz: 0.8,
@@ -51,7 +54,11 @@ const BASE: Pose = {
   zoom: 1,
 };
 
-export function poseFor({ cue, outcome }: Pick<SceneProps, 'cue' | 'outcome'>): Pose {
+/**
+ * Target pose for the current state. In the boss rounds, damage (1 − bossHealth) pries the lid
+ * wider, pulls the paper further out and makes the printer more frantic.
+ */
+export function poseFor({ cue, outcome, bossHealth }: Pick<SceneProps, 'cue' | 'outcome' | 'bossHealth'>): Pose {
   if (outcome === 'perfect') {
     return { ...BASE, led: '#30a46c', ledHz: 0, ledGlow: 1.4, paperOut: 1, warn: '#7ee2a8', warnPower: 0.8 };
   }
@@ -98,25 +105,27 @@ export function poseFor({ cue, outcome }: Pick<SceneProps, 'cue' | 'outcome'>): 
         warnPower: 0.9,
         zoom: 0.95,
       };
-    case 'jam':
+    case 'jam': {
+      const damage = bossHealth === null ? 0 : MathUtils.clamp(1 - bossHealth, 0, 1);
       return {
         ...BASE,
         led: '#e5484d',
-        ledHz: 6,
+        ledHz: 6 + damage * 4,
         ledGlow: 2.2,
         eyeOpen: 1,
         eye: '#ff3b3b',
-        eyeGlow: 2.6,
+        eyeGlow: 2.6 + damage * 1.2,
         angry: 1,
-        shake: 0.012,
-        lid: 0.22,
-        paperOut: 0.42,
-        paperTilt: 0.12,
-        paperTremble: 1,
+        shake: 0.012 + damage * 0.012,
+        lid: 0.22 + damage * 0.75,
+        paperOut: 0.42 + damage * 0.33,
+        paperTilt: 0.12 + damage * 0.12,
+        paperTremble: 1 + damage,
         warn: '#e5484d',
-        warnPower: 2.2,
-        zoom: 0.86,
+        warnPower: 2.2 + damage * 0.8,
+        zoom: 0.86 - damage * 0.05,
       };
+    }
     case 'offline':
     default:
       return BASE;
@@ -125,8 +134,8 @@ export function poseFor({ cue, outcome }: Pick<SceneProps, 'cue' | 'outcome'>): 
 
 function Printer(props: SceneProps) {
   const { reducedMotion, turnCount, lastTurnHurt } = props;
-  const { cue, outcome } = props;
-  const pose = useMemo(() => poseFor({ cue, outcome }), [cue, outcome]);
+  const { cue, outcome, bossHealth } = props;
+  const pose = useMemo(() => poseFor({ cue, outcome, bossHealth }), [cue, outcome, bossHealth]);
   const colors = useMemo(
     () => ({ led: new Color(pose.led), eye: new Color(pose.eye), warn: new Color(pose.warn) }),
     [pose],
@@ -135,6 +144,7 @@ function Printer(props: SceneProps) {
   const root = useRef<Group>(null);
   const lid = useRef<Group>(null);
   const paper = useRef<Mesh>(null);
+  const shot = useRef<Mesh>(null);
   const queueSheets = useRef<Group>(null);
   const eyes = useRef<Group>(null);
   // One material shared by both eyes; created imperatively, so disposed here.
@@ -150,7 +160,7 @@ function Printer(props: SceneProps) {
 
   const { clock, camera, size, invalidate } = useThree();
 
-  // One-shot jolt when an action costs patience (presentation only).
+  // Counterattack when an action costs patience: a jolt and a sheet of paper fired at the camera.
   useEffect(() => {
     if (turnCount > 0 && lastTurnHurt && !reducedMotion) jolt.current = clock.elapsedTime;
   }, [turnCount, lastTurnHurt, reducedMotion, clock]);
@@ -202,6 +212,22 @@ function Printer(props: SceneProps) {
         c.paperTilt * 0.6,
         c.paperTilt * 0.25 + Math.sin(t * 23) * 0.04 * tremble,
       );
+    }
+    if (shot.current) {
+      const since = t - jolt.current;
+      const flying = since >= 0 && since < SHOT_SECONDS && motion === 1;
+      shot.current.visible = flying;
+      if (flying) {
+        const k = since / SHOT_SECONDS;
+        const e = k * k; // accelerate toward the player
+        shot.current.position.set(
+          MathUtils.lerp(0, camera.position.x * 0.8, e),
+          MathUtils.lerp(0.12, camera.position.y * 0.8, e) + Math.sin(k * Math.PI) * 0.35,
+          MathUtils.lerp(0.8, camera.position.z * 0.8, e),
+        );
+        shot.current.rotation.set(k * 9, k * 4, k * 6);
+        shot.current.scale.setScalar(0.6 + e * 0.9);
+      }
     }
     if (queueSheets.current) {
       queueSheets.current.children.forEach((sheet, i) => {
@@ -329,6 +355,12 @@ function Printer(props: SceneProps) {
           </group>
         </group>
       </group>
+
+      {/* counterattack projectile (world space, hidden until fired) */}
+      <mesh ref={shot} visible={false}>
+        <boxGeometry args={[0.6, 0.006, 0.78]} />
+        <meshStandardMaterial color="#ffffff" roughness={0.85} />
+      </mesh>
     </>
   );
 }

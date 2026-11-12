@@ -3,6 +3,7 @@ import { validateLevel } from '../src/game/validateLevel';
 import { loadLevel, LEVEL_SOURCES } from '../src/app/levels';
 import { SCENE_CATALOG } from '../src/scenes/catalog';
 import { codesOf, errorsOf, rawPrinter } from './helpers';
+import printerV01 from './fixtures/printer-v0.1.json';
 
 describe('shipped content', () => {
   it('the printer level JSON is valid', () => {
@@ -10,7 +11,8 @@ describe('shipped content', () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value.title).toBe('地狱打印机');
-      expect(result.value.phases.map((p) => p.id)).toEqual(['offline', 'queue', 'jam']);
+      expect(result.value.phases.map((p) => p.id)).toEqual(['offline', 'queue', 'jam', 'jam-tug', 'jam-final']);
+      expect(result.value.schemaVersion).toBe('0.2');
     }
   });
 
@@ -215,7 +217,7 @@ describe('path analysis', () => {
       actions: [{ id: 'wait', label: '等待', patienceCost: 0, target: { type: 'phase', id: 'void' } }],
     });
     raw.phases[1].actions[1].target.id = 'void';
-    expect(errorsOf(raw)).toEqual([expect.objectContaining({ code: 'trap-phase', path: 'phases[3]' })]);
+    expect(errorsOf(raw)).toEqual([expect.objectContaining({ code: 'trap-phase', path: 'phases[5]' })]);
   });
 
   it('allows self-loop retries as long as an exit exists', () => {
@@ -235,5 +237,131 @@ describe('error messages', () => {
       expect(e.message.length).toBeGreaterThan(0);
       expect(e.path.length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe('protocol v0.1 compatibility', () => {
+  it('the original v0.1 printer level still loads unchanged', () => {
+    const result = validateLevel(structuredClone(printerV01), SCENE_CATALOG);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.schemaVersion).toBe('0.1');
+      expect(result.value.phases.map((p) => p.id)).toEqual(['offline', 'queue', 'jam']);
+      expect(result.value.phases.every((p) => p.intensity === undefined)).toBe(true);
+    }
+  });
+
+  it.each([
+    ['phases[0].intensity', (raw: any) => (raw.phases[0].intensity = 'calm')],
+    ['phases[0].actions[0].feedback', (raw: any) => (raw.phases[0].actions[0].feedback = '你好')],
+    [
+      'phases[2].actions[0].skill',
+      (raw: any) =>
+        (raw.phases[2].actions[0].skill = {
+          type: 'timing',
+          onFail: { patienceCost: 1, target: { type: 'phase', id: 'jam' } },
+        }),
+    ],
+  ])('rejects the v0.2 field %s in a v0.1 file', (path, mutate) => {
+    const raw = structuredClone(printerV01) as any;
+    mutate(raw);
+    expect(errorsOf(raw).map((e) => [e.code, e.path])).toEqual([['unknown-field', path]]);
+  });
+});
+
+describe('protocol v0.2 fields', () => {
+  // phases[2] = jam (round 1); actions[0] = open-lid (timing skill)
+  it('accepts declared intensity, feedback and skills, and keeps them in the result', () => {
+    const result = validateLevel(rawPrinter(), SCENE_CATALOG);
+    if (!result.ok) throw new Error('expected ok');
+    const jam = result.value.phases[2]!;
+    expect(jam.intensity).toBe('critical');
+    expect(jam.actions[0]!.skill).toEqual({
+      type: 'timing',
+      onFail: { patienceCost: 1, target: { type: 'phase', id: 'jam' }, feedback: '盖板猛地合上，夹住了你的手指。' },
+    });
+    expect(Object.isFrozen(jam.actions[0]!.skill!.onFail)).toBe(true);
+  });
+
+  it('rejects an invalid intensity', () => {
+    const raw = rawPrinter();
+    raw.phases[0].intensity = 'apocalyptic';
+    expect(errorsOf(raw).map((e) => [e.code, e.path])).toEqual([['invalid-value', 'phases[0].intensity']]);
+  });
+
+  it('rejects empty or non-string feedback', () => {
+    const raw = rawPrinter();
+    raw.phases[0].actions[0].feedback = '  ';
+    raw.phases[0].actions[1].feedback = 3;
+    raw.phases[2].actions[0].skill.onFail.feedback = '';
+    expect(errorsOf(raw).map((e) => [e.code, e.path])).toEqual(
+      expect.arrayContaining([
+        ['invalid-value', 'phases[0].actions[0].feedback'],
+        ['invalid-type', 'phases[0].actions[1].feedback'],
+        ['invalid-value', 'phases[2].actions[0].skill.onFail.feedback'],
+      ]),
+    );
+  });
+
+  it('rejects an unknown skill type', () => {
+    const raw = rawPrinter();
+    raw.phases[2].actions[0].skill.type = 'quicktime';
+    expect(errorsOf(raw).map((e) => [e.code, e.path])).toEqual([['invalid-value', 'phases[2].actions[0].skill.type']]);
+  });
+
+  it('requires onFail and rejects unknown skill fields', () => {
+    const raw = rawPrinter();
+    delete raw.phases[2].actions[0].skill.onFail;
+    raw.phases[2].actions[0].skill.script = 'x';
+    expect(errorsOf(raw).map((e) => [e.code, e.path])).toEqual(
+      expect.arrayContaining([
+        ['missing-field', 'phases[2].actions[0].skill.onFail'],
+        ['unknown-field', 'phases[2].actions[0].skill.script'],
+      ]),
+    );
+  });
+
+  it('validates the onFail cost', () => {
+    const raw = rawPrinter();
+    raw.phases[2].actions[0].skill.onFail.patienceCost = -1;
+    expect(errorsOf(raw).map((e) => [e.code, e.path])).toEqual([
+      ['invalid-value', 'phases[2].actions[0].skill.onFail.patienceCost'],
+    ]);
+  });
+
+  it('checks that the onFail target exists', () => {
+    const raw = rawPrinter();
+    raw.phases[2].actions[0].skill.onFail.target = { type: 'phase', id: 'nowhere' };
+    expect(errorsOf(raw).map((e) => [e.code, e.path])).toEqual([
+      ['unknown-phase-ref', 'phases[2].actions[0].skill.onFail.target.id'],
+    ]);
+  });
+
+  it('counts onFail targets for reachability', () => {
+    const raw = rawPrinter();
+    raw.phases.push({
+      id: 'penalty',
+      title: '惩罚',
+      description: '只有失手才会来到这里。',
+      cue: 'jam',
+      intensity: 'critical',
+      actions: [{ id: 'leave', label: '离开', patienceCost: 0, target: { type: 'phase', id: 'jam' } }],
+    });
+    expect(codesOf(raw)).toEqual(['unreachable-phase']);
+    raw.phases[2].actions[0].skill.onFail.target.id = 'penalty';
+    expect(codesOf(raw)).toEqual([]);
+  });
+
+  it('treats an onFail trap as a trap phase', () => {
+    const raw = rawPrinter();
+    raw.phases.push({
+      id: 'void',
+      title: '虚空',
+      description: '这里没有出口。',
+      cue: 'jam',
+      actions: [{ id: 'wait', label: '等待', patienceCost: 0, target: { type: 'phase', id: 'void' } }],
+    });
+    raw.phases[2].actions[0].skill.onFail.target.id = 'void';
+    expect(errorsOf(raw)).toEqual([expect.objectContaining({ code: 'trap-phase', path: 'phases[5]' })]);
   });
 });

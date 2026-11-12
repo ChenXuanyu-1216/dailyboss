@@ -1,0 +1,46 @@
+{
+  "schemaVersion": "0.1",
+  "id": "printer-from-hell",
+  "title": "地狱打印机",
+  "objective": "成功打印一张纸",
+  "sceneId": "printer",
+  "initialPatience": 3,
+  "initialPhaseId": "offline",
+  "phases": [
+    {
+      "id": "offline",
+      "title": "打印机离线",
+      "description": "它就在你面前，但电脑坚持说它不在。",
+      "cue": "offline",
+      "actions": [
+        { "id": "reconnect", "label": "检查连接", "patienceCost": 0, "target": { "type": "phase", "id": "queue" } },
+        { "id": "print-again", "label": "再按一次打印", "patienceCost": 1, "target": { "type": "phase", "id": "offline" } }
+      ]
+    },
+    {
+      "id": "queue",
+      "title": "队列堵塞",
+      "description": "前面还有 99 份任务，其中一份来自上个学期。",
+      "cue": "queue",
+      "actions": [
+        { "id": "clear-queue", "label": "清理旧任务", "patienceCost": 0, "target": { "type": "phase", "id": "jam" } },
+        { "id": "add-copy", "label": "追加一份试试", "patienceCost": 1, "target": { "type": "phase", "id": "queue" } }
+      ]
+    },
+    {
+      "id": "jam",
+      "title": "最终阶段：卡纸",
+      "description": "那张纸离自由只差两厘米。",
+      "cue": "jam",
+      "actions": [
+        { "id": "release-paper", "label": "打开盖板，取出卡纸", "patienceCost": 0, "target": { "type": "resolve" } },
+        { "id": "pull-hard", "label": "用力扯出来", "patienceCost": 1, "target": { "type": "resolve" } }
+      ]
+    }
+  ],
+  "endings": {
+    "perfect": { "title": "你打印了一张纸", "description": "没有损失耐心。今天，机器服从了人类。" },
+    "normal": { "title": "纸出来了", "description": "过程不太体面，但至少可以交作业了。" },
+    "failure": { "title": "耐心已耗尽", "description": "打印机仍在待机。你需要先休息一下。" }
+  }
+}

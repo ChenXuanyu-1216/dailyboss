@@ -22,6 +22,11 @@ jobs:
   test:
     name: Typecheck, unit tests, build, browser tests
     runs-on: ubuntu-latest
+    # Match package-lock.json's Playwright version. Browsers and OS dependencies
+    # are included, so CI does not depend on Ubuntu package mirrors at runtime.
+    container:
+      image: mcr.microsoft.com/playwright:v1.65.0-noble
+      options: --ipc=host
     timeout-minutes: 25
     steps:
       - name: Check out
@@ -46,9 +51,6 @@ jobs:
 
       - name: Production build (base /dailyboss/)
         run: npm run build:app
-
-      - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
 
       - name: Browser tests (Playwright, against dist/)
         run: npm run test:e2e:prebuilt

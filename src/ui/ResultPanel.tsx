@@ -7,10 +7,12 @@ interface Props {
   ending: EndingDefinition;
   patienceSpent: number;
   steps: number;
+  /** Text on the victory print (the level objective). */
+  printed: string;
   onRestart: () => void;
 }
 
-export function ResultPanel({ outcome, ending, patienceSpent, steps, onRestart }: Props) {
+export function ResultPanel({ outcome, ending, patienceSpent, steps, printed, onRestart }: Props) {
   const buttonRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     buttonRef.current?.focus();
@@ -18,6 +20,13 @@ export function ResultPanel({ outcome, ending, patienceSpent, steps, onRestart }
 
   return (
     <section className="panel result" data-outcome={outcome} aria-labelledby="result-title">
+      {outcome !== 'failure' && (
+        <div className="result__print" aria-hidden="true" data-testid="victory-print">
+          <span className="result__print-head">{UI.printedPage}</span>
+          <span className="result__print-body">{printed}</span>
+          <span className="result__print-lines" />
+        </div>
+      )}
       <p className="result__badge">
         <span className="result__mark" aria-hidden="true">
           {outcome === 'failure' ? '✕' : outcome === 'perfect' ? '★' : '✓'}

@@ -44,4 +44,24 @@ Collects evidence from real players. Balance, copy and the 2–4 minute session 
 
 ## 已记录结果 / Recorded results
 
-暂无。No sessions recorded yet.
+### 试玩 #1 — 日期未记录（2026-11-11 之前）/ date not recorded (before 2026-11-11)
+
+由项目作者转述的一次非正式试玩：几位朋友试玩了当时线上的 v0.1 版本（3 个阶段、每阶段 2 个按钮）。没有按上面的模板逐人记录，下列未知项如实标为「未记录」。
+
+An informal session, reported second-hand by the project owner: a few friends played the live v0.1 build (3 phases, 2 buttons each). It was not recorded per player with the template above; unknown fields are marked "not recorded".
+
+- 玩家人数 Players: 几位朋友，具体人数未记录 / a few friends, exact number not recorded
+- 设备 / 浏览器 Device / browser: 未记录 / not recorded
+- 屏幕方向 Orientation: 未记录 / not recorded
+- 显示模式 Display: 未记录 / not recorded
+- 首局用时 First-run completion time: 约 1 分钟 / about 1 minute（低于 2–4 分钟目标 / below the 2–4 minute target）
+- 首局结局 First-run outcome: 未记录 / not recorded
+- 令人困惑的选项或反馈 Confusing choices or feedback: 按下按钮后「什么都没发生」——只有文字变化，没有战斗感。/ "Nothing happened" after pressing the buttons — only the text changed; it didn't feel like a fight.
+- 是否注意到故障升级 Escalation noticeable?: 未记录 / not recorded
+- 是否想再玩 Wanted to replay?: 未记录；玩家表示失望 / not recorded; players said they were disappointed
+- 观察到的问题 Observed bugs: 未报告 / none reported
+- 其他备注 Other notes: 玩家期待的是一场「和打印机的史诗级战斗」，实际体验是三次点按钮。/ Players expected "an epic battle against the printer"; what they got was three button presses.
+
+**据此做出的改动 / Changes made in response**（迭代 1，见 [ROADMAP.md](ROADMAP.md)）：保留原 MVP 流程与规则，把卡纸阶段扩展为 3 个 Boss 回合，加入时机与连打两种技巧判定、Boss 血条、反击演出（纸张飞出、震屏、「−1 耐心」）、「BOSS 出现」标题卡、胜利打印纸，以及辅助模式。这些改动是否解决问题，需要试玩 #2 验证。
+
+Iteration 1 keeps the original MVP flow and rules, and expands the paper-jam phase into 3 boss rounds with timing and mash skill checks, a boss health bar, counterattacks (flying paper, screen shake, "−1 耐心"), a "BOSS 出现" title card, a victory print, and an assist mode. Whether this fixes the problem needs playtest #2.

@@ -1,4 +1,4 @@
-# 架构基线 v0.1
+# 架构基线（协议 v0.1 / v0.2）
 
 ## 目标
 
@@ -6,13 +6,15 @@
 
 直接在 React 外维护 Three.js 会增加生命周期管理；全 3D 界面会增加文本与触控成本。首版采用 React Three Fiber 管理 Three.js，用 DOM 显示按钮、文字与结算。
 
-首个可运行版本已按本文实现（v0.1）。与最初草案的差异在对应小节以「实现说明」标出。
+首个可运行版本已按本文实现（v0.1）。与最初草案的差异在对应小节以「实现说明」标出。迭代 1 在此基础上做了向后兼容的增量扩展（协议 v0.2，见「内容协议」）。
 
 ## 数据流
 
 关卡 JSON → 配置校验 → LevelDefinition → 规则引擎 → GameState → DOM 与 3D 场景。
 
 React 派发用户事件；界面与场景消费同一份状态。动画完成不决定通关，不用帧率决定扣血。计时器、音效、随机数和网络请求不进入纯规则函数。
+
+技巧判定（v0.2）由表现层的小游戏完成：用 `performance.now()` 时间戳（而非帧数）判断，结果只以 `'success' | 'fail'` 随 ACT 事件传入引擎。引擎本身仍然没有计时器。
 
 ## 目标文件与职责
 
@@ -27,7 +29,10 @@ React 派发用户事件；界面与场景消费同一份状态。动画完成�
 | src/ui/feedback.ts | 由配置数据生成每步反馈文案 |
 | src/ui/copy.ts | 跨关卡通用的界面文案 |
 | src/ui/GameShell.tsx | 通用布局与阶段展示 |
-| src/ui/ActionPanel.tsx | 行动按钮与事件派发 |
+| src/ui/ActionPanel.tsx | 行动按钮与事件派发（技巧行动带标记） |
+| src/ui/skills.ts | 小游戏的纯函数规则（指针位置、绿区、连打窗口） |
+| src/ui/SkillChallenge.tsx | 时机／连打小游戏界面，产出判定结果 |
+| src/ui/BossHud.tsx | Boss 血条、「BOSS 出现」标题卡、浮动扣耐心提示 |
 | src/ui/ResultPanel.tsx | 结局、重开和分享 |
 | src/scenes/catalog.ts | sceneId 与支持的 cue 清单（不依赖 React，供校验使用） |
 | src/scenes/registry.ts | sceneId 到本地组件的白名单（懒加载） |
@@ -38,7 +43,8 @@ React 派发用户事件；界面与场景消费同一份状态。动画完成�
 | content/levels/*.json | 阶段、行动、数值和文案 |
 | src/styles/tokens.css | 颜色、间距、字体、边框与动效变量 |
 | public/ | 静态资源（当前仅 favicon） |
-| tests/ | Vitest：配置、规则与反馈验证 |
+| tests/ | Vitest：配置、规则、反馈与小游戏规则验证 |
+| tests/fixtures/printer-v0.1.json | 原 v0.1 关卡，保证旧协议仍可加载、玩法不变 |
 | e2e/ | Playwright：针对生产构建（/dailyboss/）的浏览器流程验证 |
 | .github/workflows/ci.yml | CI 与 GitHub Pages 部署 |
 
@@ -59,10 +65,20 @@ React 派发用户事件；界面与场景消费同一份状态。动画完成�
 
 实现说明（校验额外保证）：拒绝任何未知字段；所有阶段必须可从初始阶段到达；从任一可达阶段出发都必须仍能到达 resolve（不允许死循环陷阱）；三个结局必须齐全。校验返回仅含已知字段的冻结副本。
 
+### v0.2 增量字段（迭代 1）
+
+`schemaVersion` 可为 `"0.1"` 或 `"0.2"`。以下字段均为可选，只允许出现在 v0.2 文件中（在 v0.1 文件中按未知字段拒绝，保证旧文件含义不变）：
+
+- Phase `intensity`：`calm`｜`warning`｜`critical`。未声明时按位置推导（首个 calm、最后一个 critical、其余 warning），与 v0.1 一致。`critical` 阶段即 Boss 回合。
+- Action `feedback`：行动成功后显示的打印机反应文案（非空字符串）。未提供时使用通用文案。
+- Action `skill`：`{ type: "timing" | "mash", onFail: { patienceCost, target, feedback? } }`。带技巧的行动需要判定结果：成功走行动自身的 `patienceCost` 与 `target`，失败走 `onFail` 的消耗与目标。`onFail.target` 参与引用、可达性与陷阱检查。
+
+升级方式：把 `schemaVersion` 改为 `"0.2"` 后按需添加上述字段；v0.1 文件无需修改即可继续使用。
+
 ## 固定运行接口
 
 ```ts
-type GameEvent = { type: 'ACT'; actionId: string } | { type: 'RESTART' };
+type GameEvent = { type: 'ACT'; actionId: string; skill?: 'success' | 'fail' } | { type: 'RESTART' };
 type Outcome = 'perfect' | 'normal' | 'failure';
 
 interface GameState {
@@ -74,7 +90,8 @@ interface GameState {
   outcome: Outcome | null;
 }
 
-interface TurnRecord { phaseId: string; actionId: string; patienceCost: number; patienceAfter: number }
+// patienceCost 为实际扣除值（技巧失败时为 onFail 的消耗）；skill 仅出现在技巧行动上
+interface TurnRecord { phaseId: string; actionId: string; patienceCost: number; patienceAfter: number; skill?: 'success' | 'fail' }
 type Result<T> = { ok: true; value: T } | { ok: false; errors: ValidationIssue[] };
 interface ValidationIssue { code: ValidationCode; path: string; message: string }
 
@@ -86,8 +103,8 @@ transition(level: LevelDefinition, state: GameState, event: GameEvent): GameStat
 
 以下为首版结算设计，供实现与试玩验证：
 
-1. 终局只接受重开；无效行动 ID 不改变状态。
-2. 合法行动先扣耐心，最低为 0，同时累计消耗并记录行动。
+1. 终局只接受重开；无效行动 ID 不改变状态。技巧行动缺少判定结果、或非技巧行动带有判定结果时，同样不改变状态。
+2. 选择分支：技巧失败用 `onFail` 的消耗与目标，否则用行动自身的。合法行动先扣耐心，最低为 0，同时累计消耗并记录行动。
 3. 耐心为 0 立即失败，优先于目标为 resolve 的成功判定。
 4. 仍有耐心时，phase 目标切换阶段；resolve 目标结算成功。
 5. 成功且累计消耗为 0 为完美，否则普通。
@@ -100,7 +117,8 @@ transition(level: LevelDefinition, state: GameState, event: GameEvent): GameStat
 | 文案、行动、阶段、消耗和路径 | JSON，须通过协议校验 |
 | 模型、配色、灯光和演出 | 场景组件与资源 |
 | 复用玩法的新 Boss | 新 JSON、新场景与注册项 |
-| 拖拽、限时操作、物理碰撞等新机制 | 协议、引擎与表现层；另行设计 |
+| 新的技巧判定类型 | `SkillType`、校验、`src/ui/skills.ts` 与 `SkillChallenge`；引擎只看结果，无需改动 |
+| 拖拽、物理碰撞等新机制 | 协议、引擎与表现层；另行设计 |
 
 固定的是模块接口，不是永远不变的代码。不兼容协议变更须提升版本并说明迁移方式。
 
@@ -109,6 +127,7 @@ transition(level: LevelDefinition, state: GameState, event: GameEvent): GameStat
 - 场景读取 GameState、当前阶段 cue 和结局；不维护第二套游戏规则。
 - 首版打印机由基础几何体搭建，避免依赖尚未取得的模型。
 - 离线、队列、卡纸和结局映射独立演出。
+- 场景额外接收 `bossHealth`（0–1，或 Boss 出现前为 null），由 Boss 回合进度推导，仅用于表现：每赢一回合盖板开得更大、纸被拉出更多、抖动更强。扣耐心时打印机抖动并向镜头射出一张纸（简化显示中为 CSS 动画）。
 - 场景卸载时释放几何体、材质、纹理和动画资源（JSX 创建的对象由 React Three Fiber 释放；手动创建的材质在组件卸载时 dispose）。
 - WebGL 不可用、资源失败或上下文丢失时显示简化场景，保留 DOM 行动和完整流程。
 - 实现说明：React Three Fiber 卸载渲染器时会调用 `forceContextLoss()`，触发真实的 `webglcontextlost` 事件。SceneCanvas 在自身的 layout effect 清理中先移除监听器，因此主动卸载（如切换简化显示）不会被误报为渲染故障，挂载期间的真实上下文丢失仍会触发降级。
@@ -117,4 +136,4 @@ transition(level: LevelDefinition, state: GameState, event: GameEvent): GameStat
 
 ## 验证
 
-规则验证三种结局、无效行动、终局锁定、耐心下限及重开。配置验证字段、引用、场景和成功路径。浏览器验证电脑／手机流程和降级。视觉效果另行人工验收。
+规则验证三种结局、无效行动、终局锁定、耐心下限及重开，以及技巧成功／失败分支和 v0.1 兼容。配置验证字段、引用、场景、成功路径和 v0.2 字段。浏览器验证电脑／手机流程、降级，以及用 Playwright 时钟精确控制时间的两种小游戏。视觉效果另行人工验收。

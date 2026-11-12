@@ -1,9 +1,9 @@
-import { expect, test } from './fixtures';
+import { ASSIST, BOSS_SKILLS, expect, test } from './fixtures';
 
 test.use({ reducedMotion: 'reduce' });
 
 test('reduced motion disables CSS motion and keeps gameplay intact', async ({ game, page }) => {
-  await game.open();
+  await game.open(ASSIST);
   await game.act('reconnect', 'clear-queue');
   await expect(game.app).toHaveAttribute('data-intensity', 'critical');
 
@@ -14,8 +14,24 @@ test('reduced motion disables CSS motion and keeps gameplay intact', async ({ ga
   }));
   expect(durations).toEqual({ viewport: '0s', tag: '0s', skew: '0deg' });
 
-  await game.act('release-paper');
+  // The boss card is shown without its animation.
+  await expect(game.bossCard).toBeVisible();
+  expect(await game.bossCard.evaluate((el) => getComputedStyle(el).animationName)).toBe('none');
+
+  await game.act(...BOSS_SKILLS);
   await game.expectOutcome('perfect');
   await page.keyboard.press('r');
   await game.expectInitialState();
+});
+
+test('reduced motion slows the timing needle', async ({ game, page }) => {
+  // With reduced motion a sweep takes 2600 ms: at 400 ms the needle is only at ~0.31 (a miss);
+  // at 650 ms it is at 0.5 (a hit).
+  await page.clock.install({ time: new Date('2026-01-01T09:00:00Z') });
+  await game.open('?render=simple');
+  await page.clock.pauseAt(new Date('2026-01-01T10:00:00Z'));
+  await game.act('reconnect', 'clear-queue', 'open-lid');
+  await page.clock.runFor(650);
+  await page.keyboard.press('Space');
+  await expect(game.skillVerdict).toHaveText('成功！');
 });

@@ -1,33 +1,83 @@
-import { useEffect, useMemo, useRef } from 'react';
-import type { LevelDefinition, SceneProps } from '../game/contracts';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { LevelDefinition, SceneProps, SkillResult } from '../game/contracts';
 import { findAction, findPhase } from '../game/engine';
 import { useGame } from '../game/useGame';
 import { SceneHost } from '../scenes/SceneHost';
 import { ActionPanel } from './ActionPanel';
+import { BossHud } from './BossHud';
 import { INTENSITY_LABEL, OUTCOME_STATUS, UI } from './copy';
 import { describeLastTurn } from './feedback';
-import { useGameShortcuts, usePrefersReducedMotion } from './hooks';
+import { initialAssist, useGameShortcuts, usePrefersReducedMotion } from './hooks';
 import { PatienceMeter } from './PatienceMeter';
 import { ResultPanel } from './ResultPanel';
+import { SkillChallenge } from './SkillChallenge';
 
 /** Generic level layout. Everything level-specific comes from `level`. */
 export function GameShell({ level }: { level: LevelDefinition }) {
   const game = useGame(level);
-  const { state, phase, actions, intensity, progress, lastTurn, act, restart } = game;
+  const { state, phase, actions, intensity, progress, bossHealth, lastTurn, act, restart: restartGame } = game;
   const reducedMotion = usePrefersReducedMotion();
   const consoleRef = useRef<HTMLElement>(null);
+  const windowRef = useRef<HTMLDivElement>(null);
+  const [assist, setAssist] = useState(initialAssist);
+  /** Action whose skill check is open, if any. */
+  const [challengeId, setChallengeId] = useState<string | null>(null);
+  const challengeAction = challengeId ? actions.find((a) => a.id === challengeId) : undefined;
+  const challenge = challengeAction?.skill ? { ...challengeAction, skill: challengeAction.skill } : null;
+
+  const restart = useCallback(() => {
+    setChallengeId(null);
+    restartGame();
+  }, [restartGame]);
+
+  const choose = useCallback(
+    (actionId: string) => {
+      const action = actions.find((a) => a.id === actionId);
+      if (!action) return;
+      if (!action.skill) act(actionId);
+      else if (assist) act(actionId, 'success');
+      else setChallengeId(actionId);
+    },
+    [actions, act, assist],
+  );
+
+  const resolveChallenge = useCallback(
+    (result: SkillResult) => {
+      if (challengeId) act(challengeId, result);
+      setChallengeId(null);
+    },
+    [act, challengeId],
+  );
+  const cancelChallenge = useCallback(() => setChallengeId(null), []);
 
   const actionIds = useMemo(() => actions.map((a) => a.id), [actions]);
-  useGameShortcuts(actionIds, act, restart);
+  useGameShortcuts(actionIds, choose, restart, challenge === null);
 
-  // When the focused button disappears (phase change, restart), keep keyboard focus in the console.
+  // When the focused button disappears (phase change, restart, closed check), keep focus in the console.
   useEffect(() => {
-    if (state.outcome) return; // ResultPanel focuses its own button.
+    if (state.outcome || challengeId) return; // ResultPanel and SkillChallenge focus their own buttons.
     const active = document.activeElement;
     if (!active || active === document.body) {
       consoleRef.current?.querySelector<HTMLButtonElement>('.btn--action')?.focus();
     }
-  }, [state.phaseId, state.outcome, state.turns.length]);
+  }, [state.phaseId, state.outcome, state.turns.length, challengeId]);
+
+  // The boss hits back: shake the window on every turn that cost patience.
+  const turnCount = state.turns.length;
+  const lastCost = lastTurn?.patienceCost ?? 0;
+  useEffect(() => {
+    if (turnCount === 0 || lastCost === 0 || reducedMotion) return;
+    windowRef.current?.animate?.(
+      [
+        { transform: 'translate(0, 0)' },
+        { transform: 'translate(-6px, 2px)' },
+        { transform: 'translate(5px, -3px)' },
+        { transform: 'translate(-3px, 1px)' },
+        { transform: 'translate(0, 0)' },
+      ],
+      { duration: 320, easing: 'ease-out' },
+    );
+  }, [turnCount, lastCost, reducedMotion]);
 
   const feedback = describeLastTurn(level, state);
   const statusText = state.outcome ? OUTCOME_STATUS[state.outcome] : phase.title;
@@ -37,8 +87,9 @@ export function GameShell({ level }: { level: LevelDefinition }) {
     intensity,
     patience: state.patience,
     initialPatience: level.initialPatience,
-    turnCount: state.turns.length,
-    lastTurnHurt: (lastTurn?.patienceCost ?? 0) > 0,
+    turnCount,
+    lastTurnHurt: lastCost > 0,
+    bossHealth,
     reducedMotion,
   };
 
@@ -48,8 +99,9 @@ export function GameShell({ level }: { level: LevelDefinition }) {
       data-intensity={intensity}
       data-outcome={state.outcome ?? undefined}
       data-low-patience={state.patience === 1 || undefined}
+      data-boss={bossHealth !== null || undefined}
     >
-      <div className="window">
+      <div className="window" ref={windowRef}>
         <header className="titlebar">
           <span className="titlebar__icon" aria-hidden="true" />
           <h1 className="titlebar__title">
@@ -74,6 +126,7 @@ export function GameShell({ level }: { level: LevelDefinition }) {
 
         <div className="layout">
           <section className="device" aria-label="打印机状态">
+            <BossHud title={level.title} health={bossHealth} turnCount={turnCount} lastCost={lastCost} />
             <SceneHost sceneId={level.sceneId} sceneProps={sceneProps} statusText={statusText} />
             <dl className="statusbar">
               <div className="statusbar__item statusbar__item--status">
@@ -126,10 +179,19 @@ export function GameShell({ level }: { level: LevelDefinition }) {
                 ending={level.endings[state.outcome]}
                 patienceSpent={state.patienceSpent}
                 steps={state.turns.length}
+                printed={level.objective}
                 onRestart={restart}
               />
+            ) : challenge ? (
+              <SkillChallenge
+                key={`${state.turns.length}:${challenge.id}`}
+                action={challenge}
+                reducedMotion={reducedMotion}
+                onResolve={resolveChallenge}
+                onCancel={cancelChallenge}
+              />
             ) : (
-              <ActionPanel actions={actions} onAct={act} />
+              <ActionPanel actions={actions} onAct={choose} />
             )}
 
             <p className="feedback" data-tone={feedback?.tone ?? 'idle'} role="status" aria-live="polite">
@@ -150,7 +212,14 @@ export function GameShell({ level }: { level: LevelDefinition }) {
                     return (
                       <li key={i} className="log__item" data-hurt={turn.patienceCost > 0 || undefined}>
                         <span className="log__index">{String(i + 1).padStart(2, '0')}</span>
-                        <span className="log__label">{a?.label ?? turn.actionId}</span>
+                        <span className="log__label">
+                          {a?.label ?? turn.actionId}
+                          {turn.skill && (
+                            <span className="log__skill" data-skill-result={turn.skill}>
+                              {turn.skill === 'success' ? UI.logSkillSuccess : UI.logSkillFail}
+                            </span>
+                          )}
+                        </span>
                         <span className="log__cost">
                           {turn.patienceCost > 0 ? `耐心 −${turn.patienceCost}` : '—'}
                         </span>
@@ -161,7 +230,18 @@ export function GameShell({ level }: { level: LevelDefinition }) {
               )}
             </section>
 
-            <p className="hint">{UI.keyboardHint}</p>
+            <div className="console__footer">
+              <p className="hint">{UI.keyboardHint}</p>
+              <button
+                type="button"
+                className="btn btn--ghost btn--small assist-toggle"
+                aria-pressed={assist}
+                onClick={() => setAssist((v) => !v)}
+                title={UI.assistHint}
+              >
+                {UI.assist}
+              </button>
+            </div>
           </main>
         </div>
       </div>

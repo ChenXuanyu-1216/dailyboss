@@ -25,6 +25,27 @@ export const UI = {
   lowPatience: '只剩最后一点耐心',
   configErrorTitle: '关卡配置无法加载',
   configErrorBody: '下面的问题需要在关卡 JSON 中修正：',
+  // Skill checks
+  skillBadge: '技巧',
+  skillTimingTitle: '时机判定',
+  skillTimingHint: '指针进入绿色区域时按下（空格 / 回车 / 点击）。',
+  skillTimingButton: '就是现在！',
+  skillMashTitle: '连打判定',
+  skillMashHint: (taps: number, seconds: number) => `${seconds} 秒内连按 ${taps} 次（空格 / 回车 / 点击），从第一下开始计时。`,
+  skillMashButton: '拽！',
+  skillMashProgress: '拽纸进度',
+  skillCancel: '先不了（Esc）',
+  skillSuccess: '成功！',
+  skillFail: '失手了！',
+  logSkillSuccess: '✓ 判定成功',
+  logSkillFail: '✕ 判定失手',
+  assist: '辅助模式',
+  assistHint: '技巧判定自动成功',
+  // Boss presentation
+  bossAppears: 'BOSS 出现',
+  bossHealth: 'Boss 血量',
+  hurt: (n: number) => `−${n} 耐心`,
+  printedPage: '打印成功',
 } as const;
 
 export const INTENSITY_LABEL: Record<Intensity, string> = {
