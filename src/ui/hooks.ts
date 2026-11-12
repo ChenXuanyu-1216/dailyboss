@@ -55,3 +55,16 @@ export function initialAssist(): boolean {
   if (typeof window === 'undefined') return false;
   return new URLSearchParams(window.location.search).get('assist') === '1';
 }
+
+/**
+ * Seed for a new fight: `?seed=<integer>` makes fights repeatable (tests, bug reports);
+ * otherwise each fight is different.
+ */
+export function fightSeed(): number {
+  if (typeof window !== 'undefined') {
+    const raw = new URLSearchParams(window.location.search).get('seed');
+    const n = raw === null ? Number.NaN : Number.parseInt(raw, 10);
+    if (Number.isSafeInteger(n)) return n;
+  }
+  return Math.floor(Math.random() * 2 ** 31);
+}

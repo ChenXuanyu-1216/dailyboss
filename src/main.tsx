@@ -5,6 +5,7 @@ import './styles/tokens.css';
 import './styles/base.css';
 import './styles/shell.css';
 import './styles/fallback.css';
+import './styles/fight.css';
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Missing #root element');

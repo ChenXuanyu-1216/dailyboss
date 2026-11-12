@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useReducer } from 'react';
 import type { GameEvent, GameState, LevelDefinition, SkillResult } from './contracts';
+import type { AttackKind } from './fight';
 import {
   createInitialState,
   getAvailableActions,
@@ -23,6 +24,8 @@ export function useGame(level: LevelDefinition) {
       dispatch(skill ? { type: 'ACT', actionId, skill } : { type: 'ACT', actionId }),
     [],
   );
+  const hit = useCallback((attack: AttackKind) => dispatch({ type: 'HIT', attack }), []);
+  const winFight = useCallback(() => dispatch({ type: 'FIGHT_WON' }), []);
   const restart = useCallback(() => dispatch({ type: 'RESTART' }), []);
 
   const derived = useMemo(
@@ -37,7 +40,7 @@ export function useGame(level: LevelDefinition) {
     [level, state],
   );
 
-  return { state, ...derived, act, restart };
+  return { state, ...derived, act, hit, winFight, restart };
 }
 
 export type GameApi = ReturnType<typeof useGame>;

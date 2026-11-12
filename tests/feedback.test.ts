@@ -5,7 +5,7 @@ import { validateLevel } from '../src/game/validateLevel';
 import { SCENE_CATALOG } from '../src/scenes/catalog';
 import { describeLastTurn } from '../src/ui/feedback';
 import printerV01 from './fixtures/printer-v0.1.json';
-import { validPrinter } from './helpers';
+import { validPrinter, validShipped } from './helpers';
 
 const level = validPrinter();
 const event = (step: string): GameEvent => {
@@ -76,5 +76,32 @@ describe('describeLastTurn', () => {
     const s = play(['reconnect']);
     const after = transition(level, s, { type: 'ACT', actionId: 'nope' });
     expect(describeLastTurn(level, after)).toEqual(describeLastTurn(level, s));
+  });
+});
+
+describe('describeLastTurn for fights', () => {
+  const shipped = validShipped();
+  const run = (events: GameEvent[]) =>
+    events.reduce<GameState>((s, e) => transition(shipped, s, e), createInitialState(shipped));
+
+  it('describes a hit with its cost', () => {
+    const f = describeLastTurn(shipped, run([{ type: 'HIT', attack: 'toner' }]))!;
+    expect(f).toEqual({ text: '你吸了一大口墨粉。耐心 −1，剩余 4。', tone: 'hurt' });
+  });
+
+  it('uses the fight feedback from the level and names the next phase', () => {
+    const f = describeLastTurn(shipped, run([{ type: 'FIGHT_WON' }]))!;
+    expect(f.tone).toBe('progress');
+    expect(f.text).toContain('你把 USB 线插了回去');
+    expect(f.text).toContain('局面变化：队列堵塞');
+  });
+
+  it('names the ending after the boss falls, or after the last patience goes', () => {
+    const won = describeLastTurn(shipped, run([{ type: 'FIGHT_WON' }, { type: 'FIGHT_WON' }, { type: 'FIGHT_WON' }]))!;
+    expect(won).toMatchObject({ tone: 'success' });
+    expect(won.text).toContain('你打印了一张纸');
+    const lost = describeLastTurn(shipped, run(Array.from({ length: 5 }, () => ({ type: 'HIT', attack: 'paper' }) as GameEvent)))!;
+    expect(lost.tone).toBe('failure');
+    expect(lost.text).toContain('耐心已耗尽');
   });
 });

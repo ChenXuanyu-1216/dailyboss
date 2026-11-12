@@ -6,6 +6,7 @@ import {
   type ActionDefinition,
   type ActionTarget,
   type EndingDefinition,
+  type FightRef,
   type Intensity,
   type LevelDefinition,
   type Outcome,
@@ -18,15 +19,17 @@ import {
   type ValidationCode,
   type ValidationIssue,
 } from './contracts';
+import { FIGHT_IDS } from './fights';
 
 /**
- * Runtime validation for level JSON (protocol v0.1 and v0.2).
+ * Runtime validation for level JSON (protocol v0.1, v0.2 and v0.3).
  *
  * Guarantees when `ok`:
- * - supported schemaVersion; no unknown fields at any level (v0.2 fields only in v0.2 files)
+ * - supported schemaVersion; no unknown fields at any level (newer fields only in newer files)
+ * - every phase has either a non-empty `actions` list or (v0.3) a registered `fight`, never both
  * - non-empty strings, positive integer initialPatience, non-negative integer costs
  * - unique phase IDs, unique action IDs within a phase
- * - initial phase and every phase target (including skill `onFail` targets) exist
+ * - initial phase and every phase target (including skill `onFail` and fight targets) exist
  * - sceneId is registered and every cue is supported by that scene
  * - every phase is reachable from the initial phase
  * - from every phase a `resolve` target is still reachable (no trap loops)
@@ -48,6 +51,8 @@ const LEVEL_KEYS = [
 ] as const;
 const PHASE_KEYS_V01 = ['id', 'title', 'description', 'cue', 'actions'] as const;
 const PHASE_KEYS_V02 = [...PHASE_KEYS_V01, 'intensity'] as const;
+const PHASE_KEYS_V03 = [...PHASE_KEYS_V02, 'fight'] as const;
+const FIGHT_KEYS = ['id', 'target', 'feedback'] as const;
 const ACTION_KEYS_V01 = ['id', 'label', 'patienceCost', 'target'] as const;
 const ACTION_KEYS_V02 = [...ACTION_KEYS_V01, 'feedback', 'skill'] as const;
 const SKILL_KEYS = ['type', 'onFail'] as const;
@@ -222,6 +227,22 @@ function readSkill(c: Collector, raw: unknown, path: string): SkillDefinition | 
   };
 }
 
+function readFight(c: Collector, raw: unknown, path: string): FightRef | undefined {
+  if (!isObject(raw)) {
+    c.add('invalid-type', path, `应为对象，实际为 ${describe(raw)}。`);
+    return undefined;
+  }
+  checkKeys(c, raw, FIGHT_KEYS, path);
+  const id = readString(c, raw, 'id', path);
+  if (id !== undefined && !FIGHT_IDS.includes(id)) {
+    c.add('unknown-fight', join(path, 'id'), `未注册的战斗 "${id}"。已注册：${FIGHT_IDS.join('、')}。`);
+  }
+  const target = readRequiredTarget(c, raw, path);
+  const feedback = readOptionalString(c, raw, 'feedback', path);
+  if (id === undefined || !FIGHT_IDS.includes(id) || !target || feedback === null) return undefined;
+  return { id, target, ...(feedback !== undefined ? { feedback } : {}) };
+}
+
 function readAction(
   c: Collector,
   raw: unknown,
@@ -277,7 +298,12 @@ function readPhase(
     c.add('invalid-type', path, `应为对象，实际为 ${describe(raw)}。`);
     return undefined;
   }
-  checkKeys(c, raw, version === '0.1' ? PHASE_KEYS_V01 : PHASE_KEYS_V02, path);
+  checkKeys(
+    c,
+    raw,
+    version === '0.1' ? PHASE_KEYS_V01 : version === '0.2' ? PHASE_KEYS_V02 : PHASE_KEYS_V03,
+    path,
+  );
   const id = readString(c, raw, 'id', path);
   const title = readString(c, raw, 'title', path);
   const description = readString(c, raw, 'description', path);
@@ -304,7 +330,17 @@ function readPhase(
     }
   }
 
-  const rawActions = readArray(c, raw, 'actions', path);
+  // v0.3: a fight phase has no actions.
+  let fight: FightRef | undefined | null;
+  if (version === '0.3' && 'fight' in raw) {
+    fight = readFight(c, raw.fight, join(path, 'fight')) ?? null;
+    if ('actions' in raw) {
+      c.add('invalid-value', join(path, 'actions'), '战斗阶段（fight）不能同时包含 actions。');
+      return undefined;
+    }
+  }
+
+  const rawActions = fight === undefined ? readArray(c, raw, 'actions', path) : [];
   const actions: ActionDefinition[] = [];
   let actionsOk = rawActions !== undefined;
   if (rawActions) {
@@ -330,11 +366,20 @@ function readPhase(
     description === undefined ||
     cue === undefined ||
     intensity === null ||
+    fight === null ||
     !actionsOk
   ) {
     return undefined;
   }
-  return { id, title, description, cue, actions, ...(intensity !== undefined ? { intensity } : {}) };
+  return {
+    id,
+    title,
+    description,
+    cue,
+    actions,
+    ...(intensity !== undefined ? { intensity } : {}),
+    ...(fight !== undefined ? { fight } : {}),
+  };
 }
 
 function readEndings(c: Collector, obj: Obj, path: string): Record<Outcome, EndingDefinition> | undefined {
@@ -373,10 +418,20 @@ function readEndings(c: Collector, obj: Obj, path: string): Record<Outcome, Endi
   return ok ? (result as Record<Outcome, EndingDefinition>) : undefined;
 }
 
-/** Every outcome an action can lead to: its own target and, for skill actions, the failure target. */
-function actionTargets(action: ActionDefinition): { target: ActionTarget; path: string }[] {
-  const list = [{ target: action.target, path: 'target' }];
-  if (action.skill) list.push({ target: action.skill.onFail.target, path: 'skill.onFail.target' });
+/**
+ * Every outcome a phase can lead to, with the path of each target: each action's own target and,
+ * for skill actions, the failure target; for fight phases, the fight's target.
+ */
+function phaseTargets(phase: PhaseDefinition, pi: number): { target: ActionTarget; path: string; owner: string }[] {
+  const list: { target: ActionTarget; path: string; owner: string }[] = [];
+  if (phase.fight) list.push({ target: phase.fight.target, path: `phases[${pi}].fight.target`, owner: `战斗 "${phase.fight.id}"` });
+  phase.actions.forEach((action, ai) => {
+    const base = `phases[${pi}].actions[${ai}]`;
+    list.push({ target: action.target, path: `${base}.target`, owner: `行动 "${action.id}"` });
+    if (action.skill) {
+      list.push({ target: action.skill.onFail.target, path: `${base}.skill.onFail.target`, owner: `行动 "${action.id}"` });
+    }
+  });
   return list;
 }
 
@@ -390,18 +445,12 @@ function checkGraph(c: Collector, phases: PhaseDefinition[], initialPhaseId: str
     refsOk = false;
   }
   phases.forEach((phase, pi) => {
-    phase.actions.forEach((action, ai) => {
-      for (const { target, path } of actionTargets(action)) {
-        if (target.type === 'phase' && !index.has(target.id)) {
-          c.add(
-            'unknown-phase-ref',
-            `phases[${pi}].actions[${ai}].${path}.id`,
-            `行动 "${action.id}" 指向不存在的阶段 "${target.id}"。`,
-          );
-          refsOk = false;
-        }
+    for (const { target, path, owner } of phaseTargets(phase, pi)) {
+      if (target.type === 'phase' && !index.has(target.id)) {
+        c.add('unknown-phase-ref', `${path}.id`, `${owner} 指向不存在的阶段 "${target.id}"。`);
+        refsOk = false;
       }
-    });
+    }
   });
   if (!refsOk) return;
 
@@ -410,13 +459,11 @@ function checkGraph(c: Collector, phases: PhaseDefinition[], initialPhaseId: str
   const queue = [initialPhaseId];
   while (queue.length > 0) {
     const id = queue.shift()!;
-    const phase = phases[index.get(id)!]!;
-    for (const a of phase.actions) {
-      for (const { target } of actionTargets(a)) {
-        if (target.type === 'phase' && !reachable.has(target.id)) {
-          reachable.add(target.id);
-          queue.push(target.id);
-        }
+    const pi = index.get(id)!;
+    for (const { target } of phaseTargets(phases[pi]!, pi)) {
+      if (target.type === 'phase' && !reachable.has(target.id)) {
+        reachable.add(target.id);
+        queue.push(target.id);
       }
     }
   }
@@ -431,12 +478,10 @@ function checkGraph(c: Collector, phases: PhaseDefinition[], initialPhaseId: str
   let changed = true;
   while (changed) {
     changed = false;
-    for (const phase of phases) {
+    for (const [pi, phase] of phases.entries()) {
       if (canResolve.has(phase.id)) continue;
-      const ok = phase.actions.some((a) =>
-        actionTargets(a).some(
-          ({ target }) => target.type === 'resolve' || (target.type === 'phase' && canResolve.has(target.id)),
-        ),
+      const ok = phaseTargets(phase, pi).some(
+        ({ target }) => target.type === 'resolve' || (target.type === 'phase' && canResolve.has(target.id)),
       );
       if (ok) {
         canResolve.add(phase.id);
