@@ -53,6 +53,31 @@ const ABILITY_HELP: Record<AbilityId, string> = {
 
 type Held = 'block' | 'reset';
 
+function tacticalCue(before: FightState, after: FightState, fight: FightDefinition): string {
+  const cues: string[] = [];
+  if (after.nextId > before.nextId) {
+    const volleys = new Map<number, string[]>();
+    for (const paper of after.papers) {
+      if (paper.id < before.nextId) continue;
+      const lanes = volleys.get(paper.spawnAt) ?? [];
+      lanes.push(UI.fightLanes[paper.lane]!);
+      volleys.set(paper.spawnAt, lanes);
+    }
+    for (const lanes of volleys.values()) cues.push(UI.fightPaperCue(lanes.join('、')));
+  }
+  if (after.toner && after.toner.warnAt !== before.toner?.warnAt) cues.push(UI.fightTonerWarn);
+  if (after.toner && before.t < after.toner.activeAt && after.t >= after.toner.activeAt) {
+    cues.push(UI.fightTonerActive);
+  }
+  if (before.toner && !after.toner) cues.push(UI.fightTonerEnd);
+  if (after.charge && after.charge.from !== before.charge?.from) cues.push(UI.fightChargeCue(fight.copy.charge));
+  if (after.exposure && after.exposure.from !== before.exposure?.from) {
+    cues.push(UI.fightWeakCue(UI.fightLanes[after.exposure.lane]!, fight.copy.weakPoint));
+  }
+  if (cues.length || before.lane !== after.lane) cues.push(UI.fightPosition(UI.fightLanes[after.lane]!));
+  return cues.join(' ');
+}
+
 /** Keyboard map by physical key, so it works with any layout or an active IME. */
 function keyAction(e: KeyboardEvent): { command?: FightCommand; held?: Held } | null {
   switch (e.code) {
@@ -121,6 +146,7 @@ export function FightArena({ fight, seed, assist, isBoss, onHit, onWon, onHealth
   const [view, setView] = useState<FightState>(() => createFight(fight, seed));
   const [started, setStarted] = useState(false);
   const [paused, setPaused] = useState(false);
+  const [cue, setCue] = useState({ text: '', sequence: 0 });
   const [call, setCall] = useState<{ text: string; tone: string; at: number; announce: boolean } | null>(null);
 
   const stateRef = useRef(view);
@@ -145,6 +171,7 @@ export function FightArena({ fight, seed, assist, isBoss, onHit, onWon, onHealth
   }, []);
 
   const start = useCallback(() => {
+    setCue({ text: UI.fightPosition(UI.fightLanes[stateRef.current.lane]!), sequence: 1 });
     setStarted(true);
     setPaused(false);
     lastFrame.current = null;
@@ -188,6 +215,8 @@ export function FightArena({ fight, seed, assist, isBoss, onHit, onWon, onHealth
         stateRef.current = state;
         flushSync(() => {
           setView(state);
+          const text = tacticalCue(before, state, fight);
+          if (text) setCue((prev) => ({ text, sequence: prev.sequence + 1 }));
           const last = [...events].reverse().find((e) => callFor(e, fight) !== null);
           if (last) {
             setCall({
@@ -542,6 +571,9 @@ export function FightArena({ fight, seed, assist, isBoss, onHit, onWon, onHealth
       </p>
       <p className="visually-hidden" role="status" aria-live="polite">
         {call?.announce ? call.text : ''}
+      </p>
+      <p className="visually-hidden" role="alert" aria-atomic="true">
+        <span key={cue.sequence}>{cue.text}</span>
       </p>
     </section>
   );

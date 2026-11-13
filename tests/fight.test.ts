@@ -80,6 +80,19 @@ describe('fight rules', () => {
     expect(moved.types).toEqual(['dodge']);
   });
 
+  it('reports one outcome for the first boss pair (seed 1)', () => {
+    const def = FIGHTS['printer-boss']!;
+    let s = createFight(def, 1);
+    while (s.t < 4790) s = stepFight(def, s, NO_INPUT, 10).state;
+    expect(s.papers).toHaveLength(2);
+    const occupied = s.papers.map((paper) => paper.lane);
+    const safeLane = [0, 1, 2].find((lane) => !occupied.includes(lane))!;
+    for (const lane of occupied) {
+      expect(stepFight(def, { ...s, lane }, NO_INPUT, 10).events).toEqual([{ type: 'hit', attack: 'paper' }]);
+    }
+    expect(stepFight(def, { ...s, lane: safeLane }, NO_INPUT, 10).events).toEqual([{ type: 'dodge' }]);
+  });
+
   it('toner cannot be dodged, only blocked for the whole spray', () => {
     const def = testFight([TONER, WAIT]);
     const s0 = run(def, createFight(def, 1), 200).s;

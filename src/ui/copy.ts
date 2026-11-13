@@ -43,6 +43,12 @@ export const UI = {
   assist: '辅助模式',
   assistHint: '技巧判定自动成功；实时战斗放慢到 65% 速度',
   // Real-time fights
+  fightLanes: ['左路', '中路', '右路'],
+  fightPosition: (lane: string) => `你在${lane}。`,
+  fightPaperCue: (lanes: string) => `${lanes}来纸，闪避。`,
+  fightChargeCue: (charge: string) => `${charge}，按住重启。`,
+  fightWeakCue: (lane: string, weak: string) => `${lane}露出${weak}，到该路拽纸。`,
+  fightTonerEnd: '喷射结束，可松开格挡。',
   feedbackIdleFight: '准备好就开始战斗。',
   fightKeyboardHint: '键位：←→ 闪避 · ↓ 按住格挡 · ↑ 拽出 · K 按住重启 · Esc 暂停 · R 重开',
   fightStart: '开始战斗',

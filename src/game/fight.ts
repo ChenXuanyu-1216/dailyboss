@@ -400,8 +400,10 @@ function substep(def: FightDefinition, s: FightState, dt: number, events: FightE
     const landing = s.papers.filter((p) => p.impactAt <= t1);
     if (landing.length > 0) {
       s.papers = s.papers.filter((p) => p.impactAt > t1);
-      for (const p of landing) {
-        if (p.lane === s.lane) takeHit(s, 'paper', p.impactAt, events);
+      // Both sheets of a paired shot land together and have one outcome.
+      for (const impactAt of new Set(landing.map((paper) => paper.impactAt))) {
+        const struck = landing.some((paper) => paper.impactAt === impactAt && paper.lane === s.lane);
+        if (struck) takeHit(s, 'paper', impactAt, events);
         else events.push({ type: 'dodge' });
       }
     }

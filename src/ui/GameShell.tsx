@@ -53,6 +53,10 @@ export function GameShell({ level }: { level: LevelDefinition }) {
 
   const onFightHit = useCallback((attack: AttackKind) => hit(attack), [hit]);
   const onFightHealth = useCallback((health: number) => setFightHp({ key: fightKey, health }), [fightKey]);
+  const onFightWon = useCallback(() => {
+    setFightHp(null);
+    winFight();
+  }, [winFight]);
 
   const choose = useCallback(
     (actionId: string) => {
@@ -221,7 +225,7 @@ export function GameShell({ level }: { level: LevelDefinition }) {
                 assist={assist}
                 isBoss={isBossFight}
                 onHit={onFightHit}
-                onWon={winFight}
+                onWon={onFightWon}
                 onHealth={onFightHealth}
               />
             ) : challenge ? (
