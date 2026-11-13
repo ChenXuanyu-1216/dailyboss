@@ -743,6 +743,30 @@
   transition: transform var(--dur-slow) var(--ease-out);
 }
 
+.boss-bar__chip {
+  position: absolute;
+  inset: 0;
+  transform-origin: left center;
+  background: #ffe2a8;
+  transition: transform 0.55s cubic-bezier(0.5, 0, 0.3, 1) 0.4s;
+}
+
+.boss-bar__pulse {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  animation: boss-pulse 0.5s ease-out forwards;
+}
+
+.boss-bar__pulse[data-trend='down'] {
+  background: rgb(255 255 255 / 0.55);
+}
+
+.boss-bar__pulse[data-trend='up'] {
+  background: rgb(255 154 60 / 0.7);
+  box-shadow: 0 0 12px rgb(255 154 60 / 0.9);
+}
+
 .app[data-outcome='perfect'] .boss-bar__fill,
 .app[data-outcome='normal'] .boss-bar__fill {
   background: var(--c-ok);
@@ -997,6 +1021,15 @@
   100% {
     opacity: 0;
     transform: translate(-50%, -36px);
+  }
+}
+
+@keyframes boss-pulse {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
   }
 }
 

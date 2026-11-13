@@ -429,9 +429,11 @@ function substep(def: FightDefinition, s: FightState, dt: number, events: FightE
     events.push({ type: 'window-missed' });
   }
 
-  // 6. A charge that completes heals the printer.
+  // 6. A charge that completes heals the printer, but never past the current stage's starting HP:
+  // an update can stall the fight, not undo a stage the player already broke through.
   if (s.charge && t1 >= s.charge.until) {
-    const amount = Math.min(def.maxHp - s.hp, s.charge.heal);
+    const cap = Math.min(def.maxHp, currentStage(def, s).atHp);
+    const amount = Math.max(0, Math.min(cap - s.hp, s.charge.heal));
     s.hp += amount;
     s.charge = null;
     events.push({ type: 'heal', amount });

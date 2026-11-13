@@ -3,6 +3,7 @@ import {
   useEffect,
   useRef,
   useState,
+  type AnimationEvent,
   type CSSProperties,
   type MouseEvent,
   type PointerEvent,
@@ -23,6 +24,9 @@ import {
   type FightState,
 } from '../game/fight';
 import { UI } from './copy';
+import { FightFx } from './fightEffects';
+import { FightFxLayer } from './FightFxLayer';
+import { effectsEnabled, usePrefersReducedMotion } from './hooks';
 
 /** Assist mode runs fight time at this fraction of real time. */
 export const ASSIST_SPEED = 0.65;
@@ -30,6 +34,57 @@ export const ASSIST_SPEED = 0.65;
 const MAX_FRAME_MS = 100;
 /** How long the last call-out stays emphasised. */
 const CALL_MS = 900;
+/** The winning blow lands, the arena celebrates, then the game moves on. */
+const VICTORY_MS = 1100;
+
+/** Screen-shake strength (px) per event; 0 = none. */
+function shakeFor(e: FightEvent): number {
+  switch (e.type) {
+    case 'hit':
+      return e.attack === 'toner' ? 11 : 9;
+    case 'damage':
+      return e.stun ? 9 : 5;
+    case 'interrupt':
+      return 6;
+    case 'stage':
+      return 10;
+    case 'won':
+      return 8;
+    default:
+      return 0;
+  }
+}
+
+/** Full-arena flash tone per event, if any. */
+function flashFor(e: FightEvent): string | null {
+  switch (e.type) {
+    case 'hit':
+      return e.attack === 'toner' ? 'ink' : 'hit';
+    case 'damage':
+      return e.stun ? 'stun' : 'damage';
+    case 'interrupt':
+      return 'stun';
+    case 'stage':
+    case 'won':
+      return e.type;
+    default:
+      return null;
+  }
+}
+
+function shake(el: HTMLElement | null, amp: number): void {
+  el?.animate?.(
+    [
+      { transform: 'translate(0, 0)' },
+      { transform: `translate(${-amp}px, ${amp * 0.45}px) rotate(-0.4deg)` },
+      { transform: `translate(${amp * 0.8}px, ${-amp * 0.5}px) rotate(0.3deg)` },
+      { transform: `translate(${-amp * 0.5}px, ${amp * 0.3}px)` },
+      { transform: `translate(${amp * 0.25}px, 0)` },
+      { transform: 'translate(0, 0)' },
+    ],
+    { duration: 260 + amp * 12, easing: 'cubic-bezier(0.2, 0.7, 0.2, 1)' },
+  );
+}
 
 interface Props {
   fight: FightDefinition;
@@ -148,6 +203,20 @@ export function FightArena({ fight, seed, assist, isBoss, onHit, onWon, onHealth
   const [paused, setPaused] = useState(false);
   const [cue, setCue] = useState({ text: '', sequence: 0 });
   const [call, setCall] = useState<{ text: string; tone: string; at: number; announce: boolean } | null>(null);
+  const [flash, setFlash] = useState<{ tone: string; n: number } | null>(null);
+  const reducedMotion = usePrefersReducedMotion();
+  const reducedRef = useRef(reducedMotion);
+  reducedRef.current = reducedMotion;
+  // The particle layer; shakes and flashes only follow reduced motion.
+  const [particles] = useState(effectsEnabled);
+  const fxOn = particles && !reducedMotion;
+  const fxOnRef = useRef(fxOn);
+  fxOnRef.current = fxOn;
+  const [fx] = useState(() => new FightFx());
+  const arenaRef = useRef<HTMLDivElement>(null);
+  const avatarRef = useRef<HTMLSpanElement>(null);
+  const winTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(winTimer.current), []);
 
   const stateRef = useRef(view);
   const commands = useRef<FightCommand[]>([]);
@@ -213,7 +282,26 @@ export function FightArena({ fight, seed, assist, isBoss, onHit, onWon, onHealth
         const before = stateRef.current;
         const { state, events } = stepFight(fight, before, input, dt);
         stateRef.current = state;
+        const motion = !reducedRef.current;
+        if (motion) {
+          if (fxOnRef.current) fx.sync(before, state, events);
+          const amp = Math.max(0, ...events.map(shakeFor));
+          if (amp > 0) shake(arenaRef.current, amp);
+          if (state.lane !== before.lane) {
+            const dir = Math.sign(state.lane - before.lane);
+            avatarRef.current?.animate?.(
+              [
+                { transform: `translateX(${-dir * 10}px) scale(1.22, 0.8)` },
+                { transform: `translateX(${dir * 3}px) scale(0.92, 1.08)`, offset: 0.55 },
+                { transform: 'none' },
+              ],
+              { duration: 170, easing: 'ease-out' },
+            );
+          }
+        }
+        const flashTone = motion ? events.map(flashFor).find((tone) => tone !== null) : undefined;
         flushSync(() => {
+          if (flashTone) setFlash((prev) => ({ tone: flashTone, n: (prev?.n ?? 0) + 1 }));
           setView(state);
           const text = tacticalCue(before, state, fight);
           if (text) setCue((prev) => ({ text, sequence: prev.sequence + 1 }));
@@ -233,7 +321,8 @@ export function FightArena({ fight, seed, assist, isBoss, onHit, onWon, onHealth
         }
         if (state.won && !reported.current) {
           reported.current = true;
-          callbacks.current.onWon();
+          // Hold on the winning blow for a moment before the game moves on.
+          winTimer.current = window.setTimeout(() => callbacks.current.onWon(), VICTORY_MS);
           return;
         }
       }
@@ -241,7 +330,7 @@ export function FightArena({ fight, seed, assist, isBoss, onHit, onWon, onHealth
     };
     raf = requestAnimationFrame(frame);
     return () => cancelAnimationFrame(raf);
-  }, [running, fight]);
+  }, [running, fight, fx]);
 
   // Keyboard.
   useEffect(() => {
@@ -310,6 +399,7 @@ export function FightArena({ fight, seed, assist, isBoss, onHit, onWon, onHealth
   const channel = channelProgress(s);
   const toner = s.toner ? (t >= s.toner.activeAt ? 'active' : 'warn') : undefined;
   const warnLanes = new Set(s.papers.filter((p) => t < p.launchAt).map((p) => p.lane));
+  const dangerLanes = new Set(s.papers.map((p) => p.lane));
   const resetReady = t >= s.resetReadyAt;
   const pullReady = t >= s.pullReadyAt;
   const hurt = t < s.invulnerableUntil && s.hits > 0;
@@ -336,6 +426,8 @@ export function FightArena({ fight, seed, assist, isBoss, onHit, onWon, onHealth
       data-hurt={hurt || undefined}
       data-hits={s.hits}
       data-hp={s.hp}
+      data-fx={fxOn || undefined}
+      data-won={s.won || undefined}
     >
       <header className="fight__head">
         <h2 id="fight-heading" className="panel__label">
@@ -372,7 +464,7 @@ export function FightArena({ fight, seed, assist, isBoss, onHit, onWon, onHealth
         )}
       </header>
 
-      <div className="fight__arena" role="group" aria-label={UI.fightArena}>
+      <div className="fight__arena" ref={arenaRef} role="group" aria-label={UI.fightArena}>
         {s.charge && (
           <div className="fight__charge">
             <span className="fight__charge-label">{fight.copy.charge}</span>
@@ -418,6 +510,7 @@ export function FightArena({ fight, seed, assist, isBoss, onHit, onWon, onHealth
                     {UI.fightIncoming}
                   </span>
                 )}
+                {dangerLanes.has(lane) && <span className="fight__target" aria-hidden="true" />}
                 {s.papers
                   .filter((p) => p.lane === lane)
                   .map((p) => {
@@ -445,12 +538,30 @@ export function FightArena({ fight, seed, assist, isBoss, onHit, onWon, onHealth
             data-hurt={hurt || undefined}
             data-locked={!pullReady || undefined}
           >
-            <span className="fight__avatar">{UI.fightYou}</span>
+            <span className="fight__floor" aria-hidden="true" />
+            {s.blocking && <span className="fight__shield" aria-hidden="true" />}
+            <span className="fight__avatar" ref={avatarRef}>
+              {UI.fightYou}
+            </span>
             {channel !== null && (
               <span className="fight__channel" style={{ '--channel': channel } as CSSProperties} />
             )}
           </div>
         </div>
+
+        {fxOn && <FightFxLayer fx={fx} paused={paused} />}
+
+        {flash && (
+          <span
+            key={flash.n}
+            className="fight__flash"
+            data-tone={flash.tone}
+            aria-hidden="true"
+            onAnimationEnd={(e: AnimationEvent<HTMLSpanElement>) => {
+              if (e.target === e.currentTarget) setFlash(null);
+            }}
+          />
+        )}
 
         {toner && (
           <div className="fight__toner" data-phase={toner} aria-hidden="true">
@@ -462,6 +573,12 @@ export function FightArena({ fight, seed, assist, isBoss, onHit, onWon, onHealth
           <div className="fight__banner" aria-hidden="true">
             <span className="fight__banner-kicker">{UI.fightStageCleared}</span>
             <span className="fight__banner-title">{stage.title}</span>
+          </div>
+        )}
+
+        {s.won && (
+          <div className="fight__victory" aria-hidden="true">
+            <span className="fight__victory-title">{isBoss ? UI.fightVictoryBoss : UI.fightVictory}</span>
           </div>
         )}
 
@@ -567,7 +684,9 @@ export function FightArena({ fight, seed, assist, isBoss, onHit, onWon, onHealth
       </div>
 
       <p className="fight__call" data-tone={callFresh ? call?.tone : undefined} data-testid="fight-call">
-        {call?.text ?? ' '}
+        <span key={call?.at ?? 0} className="fight__call-text">
+          {call?.text ?? ' '}
+        </span>
       </p>
       <p className="visually-hidden" role="status" aria-live="polite">
         {call?.announce ? call.text : ''}

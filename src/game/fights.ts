@@ -99,13 +99,19 @@ const printerBoss: FightDefinition = {
     {
       title: '最终形态：最后两厘米',
       atHp: 4,
-      gapMs: 350,
+      gapMs: 380,
+      // Playtest #3: the old 5 s / +2 HP update out-healed most players. The charge is now slower
+      // and smaller, can never heal past this stage's starting HP, and a quiet beat right after it
+      // starts leaves room to channel the reset. Two jams per cycle mean a player who misses the
+      // reset still makes slow progress; interrupting stays much faster.
       cycle: [
-        { kind: 'update', chargeMs: 5000, heal: 2, parallel: true },
-        { kind: 'paper', shots: ['aimed', 'aimed', 'aimed'], intervalMs: 450, telegraphMs: 520, travelMs: 330 },
-        { kind: 'toner', telegraphMs: 600, activeMs: 650 },
-        { kind: 'paper', shots: ['pair'], intervalMs: 0, telegraphMs: 560, travelMs: 330 },
+        { kind: 'update', chargeMs: 7000, heal: 1, parallel: true },
+        { kind: 'wait', ms: 900 },
+        { kind: 'paper', shots: ['aimed', 'aimed', 'aimed'], intervalMs: 480, telegraphMs: 560, travelMs: 340 },
         { kind: 'jam', windowMs: 1000, lane: 'away' },
+        { kind: 'toner', telegraphMs: 650, activeMs: 650 },
+        { kind: 'paper', shots: ['pair'], intervalMs: 0, telegraphMs: 580, travelMs: 340 },
+        { kind: 'jam', windowMs: 1200, lane: 'away' },
       ],
     },
   ],

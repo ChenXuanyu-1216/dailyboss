@@ -230,10 +230,14 @@ export class GamePage {
   /**
    * Opens the game under Playwright's fake clock, paused, with a fixed fight seed (simplified
    * display unless `query` says otherwise). Time then only moves with `page.clock.runFor()`.
+   *
+   * The arena's particle layer is off (`fx=0`) unless `fx` is set: headless Chromium puts 2D
+   * canvas on SwiftShader, where every drawn frame costs ~15 ms of CPU, and fast-forwarding a
+   * whole level draws thousands of frames. e2e/effects.spec.ts covers the layer itself.
    */
-  async openPaused(query = 'render=simple') {
+  async openPaused(query = 'render=simple', { fx = false }: { fx?: boolean } = {}) {
     await this.page.clock.install({ time: CLOCK_START });
-    const extra = query.replace(/^[?&]/, '');
+    const extra = [query.replace(/^[?&]/, ''), fx ? '' : 'fx=0'].filter(Boolean).join('&');
     await this.open(`?${SEED}${extra ? `&${extra}` : ''}`);
     await this.page.clock.pauseAt(CLOCK_START + 3_600_000);
   }

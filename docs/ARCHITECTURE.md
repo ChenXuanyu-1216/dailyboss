@@ -38,6 +38,8 @@ React 派发用户事件；界面与场景消费同一份状态。动画完成�
 | src/game/fight.ts | 实时战斗的纯函数模拟（v0.3）：招式、技能、命中与胜负 |
 | src/game/fights.ts | 已登记的战斗（招式编排与数值），供关卡 `fight.id` 引用与校验 |
 | src/ui/FightArena.tsx | 战斗区域：时钟、键盘与触屏输入、渲染，向上报告被击中与胜利 |
+| src/ui/fightEffects.ts | 战斗粒子特效（墨粉云、墨渍、碎纸、火花、伤害数字）：只读取战斗状态与事件，不影响规则 |
+| src/ui/FightFxLayer.tsx | 特效 canvas 层：自有动画循环、尺寸适配、按绘制耗时自动降低粒子数量；减少动态效果或 `?fx=0` 时不挂载 |
 | src/ui/ResultPanel.tsx | 结局、重开和分享 |
 | src/scenes/catalog.ts | sceneId 与支持的 cue 清单（不依赖 React，供校验使用） |
 | src/scenes/registry.ts | sceneId 到本地组件的白名单（懒加载） |

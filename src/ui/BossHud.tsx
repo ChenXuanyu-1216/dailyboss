@@ -18,12 +18,17 @@ const CARD_MS = 1800;
  */
 export function BossHud({ title, health, turnCount, lastCost }: Props) {
   const [card, setCard] = useState(0);
+  /** Last HP change, replayed as a pulse on the bar: down when the boss is hurt, up when it heals. */
+  const [pulse, setPulse] = useState<{ trend: 'down' | 'up'; n: number } | null>(null);
   const prevHealth = useRef<number | null>(health);
 
   useEffect(() => {
-    const wasNull = prevHealth.current === null;
+    const prev = prevHealth.current;
     prevHealth.current = health;
-    if (wasNull && health !== null && turnCount > 0) setCard((n) => n + 1);
+    if (prev === null && health !== null && turnCount > 0) setCard((n) => n + 1);
+    if (prev !== null && health !== null && health !== prev) {
+      setPulse((p) => ({ trend: health < prev ? 'down' : 'up', n: (p?.n ?? 0) + 1 }));
+    }
   }, [health, turnCount]);
 
   useEffect(() => {
@@ -45,7 +50,10 @@ export function BossHud({ title, health, turnCount, lastCost }: Props) {
             aria-valuemax={100}
             aria-valuenow={Math.round(health * 100)}
           >
+            {/* The chip trails the fill, so a hit shows how much it took off. */}
+            <span className="boss-bar__chip" style={{ transform: `scaleX(${health})` }} />
             <span className="boss-bar__fill" style={{ transform: `scaleX(${health})` }} />
+            {pulse && <span key={pulse.n} className="boss-bar__pulse" data-trend={pulse.trend} />}
           </div>
           <span className="boss-bar__value" aria-hidden="true">
             {Math.round(health * 100)}%
