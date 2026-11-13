@@ -67,6 +67,8 @@ export const UI = {
   fightCooldown: '冷却中',
   fightLocked: '手被夹住',
   fightStageCleared: '形态改变',
+  fightVictory: '过关！',
+  fightVictoryBoss: 'Boss 击破！',
   fightCalls: {
     hit: { paper: '被纸砸中！', toner: '被墨粉喷中！' },
     dodge: '闪开了。',

@@ -87,3 +87,28 @@ An informal session, reported second-hand by the project owner: a few friends pl
 **据此做出的改动 / Changes made in response**（迭代 2，见 [ROADMAP.md](ROADMAP.md)）：三个阶段全部改为实时战斗。打印机的招式都有预警，每种招式只有一个对应技能：纸张砸向发光的通道（闪避）、墨粉喷满全屏（按住格挡）、弱点短暂露出（走到那条通道拽出）、「安装更新」充能回血（按住重启打断）。去掉了「蛮力选项」，不再有不靠技巧也能推进的按钮。两场热身战各教两个技能，Boss 战三个形态。初始耐心改为 5，每被击中一次扣 1。是否解决问题，需要试玩 #3 验证。
 
 All three phases are now real-time fights. Every printer attack is telegraphed and has exactly one answer: paper aimed at a glowing lane (dodge), toner across the screen (hold block), a briefly exposed weak point (walk to its lane and pull), and an "installing update" charge that heals (hold reset to interrupt). The brute-force options are gone, so no button advances without skill. Two warm-up fights teach two abilities each, and the boss has three stages. Patience is now 5, and each hit costs 1. Whether this fixes the problem needs playtest #3.
+
+### 试玩 #3 — 2026-11-12（由作者于 2026-11-12 转述）/ 2026-11-12 (reported by the owner on 2026-11-12)
+
+由项目作者转述的一次非正式试玩：作者和几位朋友试玩了迭代 2 的版本（三场实时战斗）。没有按模板逐人记录，下列未知项如实标为「未记录」。
+
+An informal session, reported second-hand by the project owner: the owner and a few friends played the Iteration 2 build (three real-time fights). It was not recorded per player with the template; unknown fields are marked "not recorded".
+
+- 玩家人数 Players: 作者和几位朋友，具体人数未记录 / the owner and a few friends, exact number not recorded
+- 设备 / 浏览器 Device / browser: 未记录 / not recorded
+- 屏幕方向 Orientation: 未记录 / not recorded
+- 显示模式 Display: 未记录 / not recorded
+- 首局用时 First-run completion time: 未记录 / not recorded
+- 首局结局 First-run outcome: 未记录；第三关很难通过 / not recorded; the third fight was very hard to clear
+- 令人困惑的选项或反馈 Confusing choices or feedback: 未报告 / none reported
+- 是否注意到故障升级 Escalation noticeable?: 未记录 / not recorded
+- 是否想再玩 Wanted to replay?: 未记录 / not recorded
+- 观察到的问题 Observed bugs: 未报告 / none reported
+- 其他备注 Other notes:
+  1. 墨粉喷射时视觉效果不够。/ Not enough visual effect when the toner sprays.
+  2. 整体动画太简单，像一个低质量的小游戏。/ Animations overall are too simple; it feels like a low-quality mini-game.
+  3. 第三关 Boss 回血太快，极难通关，希望降低难度。/ The third-level boss heals so fast that the stage is extremely hard to clear; please lower the difficulty.
+
+**据此做出的改动 / Changes made in response**（迭代 3，见 [ROADMAP.md](ROADMAP.md)）：战斗区域加入粒子特效层（墨粉预警时出纸口漏粉、喷射时整片墨粉云和 CMYK 墨点、被喷中时屏幕上的墨渍、格挡时墨粉从护盾上弹开），以及震屏、闪光、纸张飞行与落地碎纸、拽出时的火花和伤害数字、打断时的冲击波、形态横幅与胜利演出，3D 打印机被打中时会后仰。Boss 最终形态的「固件更新」改为 7 秒回 1 血（原 5 秒回 2 血），且不会回到超过该形态起始血量；更新开始后有一段空档用来按住重启；每轮多一次卡纸机会。脚本玩家测试中，完全不会打断更新的玩家现在约 35 秒打完最终形态（原来永远打不过）。是否解决问题，需要试玩 #4 验证。
+
+The arena gains a particle-effects layer (slots leaking toner during the warning, a full toner cloud with CMYK droplets during the spray, ink splats on the screen when hit, toner bouncing off the shield when blocking), plus screen shake, flashes, paper flight and shredding, sparks and damage numbers on pulls, a shockwave on interrupts, stage banners and a victory beat; the 3D printer recoils when hit. The boss's final-form "firmware update" now heals 1 HP over 7 s (was 2 HP over 5 s) and can never heal above that stage's starting HP; a quiet beat after it starts leaves room to hold reset, and each cycle has one more jam. In scripted-player tests a player who never interrupts the update now clears the final form in about 35 s (before: never). Whether this fixes the problem needs playtest #4.

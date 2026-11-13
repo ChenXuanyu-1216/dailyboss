@@ -19,6 +19,7 @@ import {
   runFight,
   skilledPolicy,
   turtlePolicy,
+  type Policy,
 } from './fightBot';
 
 /** A one-stage fight that repeats `cycle`, for checking single rules in isolation. */
@@ -154,6 +155,22 @@ describe('fight rules', () => {
     expect(reset.s.resetReadyAt).toBeGreaterThan(reset.s.t);
   });
 
+  it("a charge never heals past the current stage's starting HP", () => {
+    const UPDATE: MoveSpec = { kind: 'update', chargeMs: 1000, heal: 3, parallel: false };
+    const def = testFight([UPDATE, WAIT], {
+      maxHp: 6,
+      stages: [
+        { title: 'a', atHp: 6, gapMs: 100, cycle: [WAIT] },
+        { title: 'b', atHp: 3, gapMs: 100, cycle: [UPDATE, WAIT] },
+      ],
+    });
+    const s = { ...createFight(def, 1), hp: 2, stage: 1 };
+    const r = run(def, s, 1400);
+    expect(r.events).toContainEqual({ type: 'heal', amount: 1 });
+    expect(r.s.hp).toBe(3);
+    expect(run(def, { ...s, hp: 3 }, 1400).events).toContainEqual({ type: 'heal', amount: 0 });
+  });
+
   it('letting go of reset early cancels the channel; a hit interrupts it too', () => {
     const UPDATE: MoveSpec = { kind: 'update', chargeMs: 5000, heal: 0, parallel: true };
     const def = testFight([UPDATE, PAPER, WAIT]);
@@ -276,6 +293,35 @@ describe('balance (scripted players, 20 seeds each)', () => {
       const r = runFight(FIGHTS['printer-boss']!, seed, skilledPolicy(900), { maxHits: PATIENCE });
       expect(r.won, `seed ${seed}`).toBe(false);
     }
+  });
+
+  it('the final form never out-heals a player who misses every reset; resetting is still faster', () => {
+    // Playtest #3: the update used to heal faster than jams could deal damage, so a player who
+    // could not land the reset was stuck forever. Now they win slowly, and HP never climbs back
+    // above the final form's threshold.
+    const def = FIGHTS['printer-boss']!;
+    const finalIndex = def.stages.length - 1;
+    const final = def.stages[finalIndex]!;
+    const neverReset = (): Policy => {
+      const base = skilledPolicy(350);
+      return (s, mem) => ({ ...base(s, mem), reset: false });
+    };
+    for (const seed of seeds) {
+      let s = { ...createFight(def, seed), hp: final.atHp, stage: finalIndex };
+      const policy = neverReset();
+      const mem: Record<string, number> = {};
+      let peak = s.hp;
+      while (!s.won && s.t < 90_000) {
+        s = stepFight(def, s, policy(s, mem), FRAME_MS).state;
+        peak = Math.max(peak, s.hp);
+      }
+      expect(peak, `seed ${seed}`).toBeLessThanOrEqual(final.atHp);
+      expect(s.won, `seed ${seed}`).toBe(true);
+
+      const withReset = runFight(def, seed, skilledPolicy(350), { maxMs: 240_000 });
+      expect(withReset.won).toBe(true);
+    }
+    expect(runFight(def, 1, neverReset()).t).toBeGreaterThan(runFight(def, 1, skilledPolicy(350)).t);
   });
 
   it('a flawless boss fight takes about a minute of fight time', () => {

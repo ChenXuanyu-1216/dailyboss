@@ -157,6 +157,8 @@ function Printer(props: SceneProps) {
   const warnLight = useRef<PointLight>(null);
   const current = useRef({ ...BASE, eyeOpen: 0, lid: 0, paperOut: 0 });
   const jolt = useRef(-10);
+  const flinch = useRef(-10);
+  const prevHealth = useRef(bossHealth);
 
   const { clock, camera, size, invalidate } = useThree();
 
@@ -164,6 +166,13 @@ function Printer(props: SceneProps) {
   useEffect(() => {
     if (turnCount > 0 && lastTurnHurt && !reducedMotion) jolt.current = clock.elapsedTime;
   }, [turnCount, lastTurnHurt, reducedMotion, clock]);
+
+  // The player lands a blow: the printer recoils and its eyes flare.
+  useEffect(() => {
+    const prev = prevHealth.current;
+    prevHealth.current = bossHealth;
+    if (prev !== null && bossHealth !== null && bossHealth < prev && !reducedMotion) flinch.current = clock.elapsedTime;
+  }, [bossHealth, reducedMotion, clock]);
 
   // In reduced-motion (demand) mode, render once per state change.
   useEffect(() => {
@@ -192,12 +201,17 @@ function Printer(props: SceneProps) {
       const shake = pose.shake * motion;
       const since = t - jolt.current;
       const j = since < 0.6 ? 0.06 * Math.exp(-since * 7) * Math.sin(since * 48) : 0;
+      // Recoil from a hit: knocked back, squashed, then springs back.
+      const sinceFlinch = t - flinch.current;
+      const f = sinceFlinch < 0.7 ? Math.exp(-sinceFlinch * 6) * Math.cos(sinceFlinch * 22) : 0;
       root.current.position.x = Math.sin(t * 43) * shake + j;
-      root.current.position.z = Math.cos(t * 37) * shake * 0.6;
+      root.current.position.z = Math.cos(t * 37) * shake * 0.6 - f * 0.12;
       // Idle "breathing" while offline; slump on failure.
       const breathe = cue === 'offline' && !outcome ? Math.sin(t * 1.6) * 0.006 * motion : 0;
-      root.current.scale.y = 1 - c.sag * 0.06 + breathe;
+      root.current.scale.y = 1 - c.sag * 0.06 + breathe - f * 0.07;
+      root.current.scale.x = 1 + f * 0.04;
       root.current.rotation.z = c.sag * 0.035 + j * 0.4;
+      root.current.rotation.x = -f * 0.09;
     }
     if (lid.current) {
       const flap = pose.lid > 0 ? Math.abs(Math.sin(t * 9)) * 0.06 * motion : 0;
@@ -243,7 +257,8 @@ function Printer(props: SceneProps) {
       });
     }
     eyeMat.emissive.lerp(colors.eye, reducedMotion ? 1 : 0.12);
-    eyeMat.emissiveIntensity = c.eyeGlow;
+    const sinceHit = t - flinch.current;
+    eyeMat.emissiveIntensity = c.eyeGlow + (sinceHit < 0.5 ? 4 * (1 - sinceHit / 0.5) : 0);
     if (ledMat.current) {
       const on = pose.ledHz === 0 || !motion ? 1 : Math.sin(t * Math.PI * 2 * pose.ledHz) > 0 ? 1 : 0.15;
       ledMat.current.color.lerp(colors.led, reducedMotion ? 1 : 0.2);

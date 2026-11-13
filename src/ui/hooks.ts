@@ -57,6 +57,15 @@ export function initialAssist(): boolean {
 }
 
 /**
+ * Particle effects in the fight arena are on unless `?fx=0` (or reduced motion, handled by the
+ * arena). The switch exists for fast-forwarded browser tests and for diagnosing slow devices.
+ */
+export function effectsEnabled(): boolean {
+  if (typeof window === 'undefined') return true;
+  return new URLSearchParams(window.location.search).get('fx') !== '0';
+}
+
+/**
  * Seed for a new fight: `?seed=<integer>` makes fights repeatable (tests, bug reports);
  * otherwise each fight is different.
  */
