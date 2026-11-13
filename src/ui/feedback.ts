@@ -1,5 +1,7 @@
 import type { GameState, LevelDefinition } from '../game/contracts';
 import { findAction, findPhase, resolveBranch } from '../game/engine';
+import type { AttackKind } from '../game/fight';
+import { UI } from './copy';
 
 export type FeedbackTone = 'neutral' | 'progress' | 'hurt' | 'success' | 'failure';
 
@@ -16,6 +18,7 @@ export interface Feedback {
 export function describeLastTurn(level: LevelDefinition, state: GameState): Feedback | null {
   const turn = state.turns.at(-1);
   if (!turn) return null;
+  if (turn.fight) return describeFightTurn(level, state);
   const from = findPhase(level, turn.phaseId);
   const action = from && findAction(from, turn.actionId);
   if (!from || !action) return null;
@@ -44,4 +47,24 @@ export function describeLastTurn(level: LevelDefinition, state: GameState): Feed
     text: `${did}${cost}${reaction ? '' : '没有起作用，'}仍然是「${from.title}」。`,
     tone: turn.patienceCost > 0 ? 'hurt' : 'neutral',
   };
+}
+
+/** v0.3 fight turns: a hit taken (costs patience) or the fight won (follows `fight.target`). */
+function describeFightTurn(level: LevelDefinition, state: GameState): Feedback | null {
+  const turn = state.turns.at(-1)!;
+  const from = findPhase(level, turn.phaseId);
+  if (!from?.fight) return null;
+
+  if (turn.fight === 'hit') {
+    const did = UI.hitFeedback[turn.actionId as AttackKind] ?? '你被击中了。';
+    const cost = `耐心 −${turn.patienceCost}，剩余 ${turn.patienceAfter}。`;
+    if (state.outcome === 'failure') return { text: `${did}${cost}${level.endings.failure.title}。`, tone: 'failure' };
+    return { text: `${did}${cost}`, tone: 'hurt' };
+  }
+
+  const did = from.fight.feedback ?? UI.fightWonFeedback;
+  if (state.outcome) return { text: `${did}${level.endings[state.outcome].title}。`, tone: 'success' };
+  const target = from.fight.target;
+  const to = target.type === 'phase' ? findPhase(level, target.id) : undefined;
+  return { text: `${did}局面变化：${to?.title ?? state.phaseId}。`, tone: 'progress' };
 }

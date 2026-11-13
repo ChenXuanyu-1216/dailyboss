@@ -6,9 +6,13 @@
  * v0.2: additive and backward compatible — optional action `feedback`, optional action `skill`
  *       (with `onFail`), optional phase `intensity`. v0.1 files load unchanged; the v0.2 fields
  *       are rejected in a v0.1 file so its meaning never silently changes.
+ * v0.3: additive — a phase may be a real-time `fight` (src/game/fight.ts) instead of a list of
+ *       actions. Hits taken in the fight cost patience; winning it follows `fight.target`.
  */
 
-export const SUPPORTED_SCHEMA_VERSIONS = ['0.1', '0.2'] as const;
+import type { AttackKind } from './fight';
+
+export const SUPPORTED_SCHEMA_VERSIONS = ['0.1', '0.2', '0.3'] as const;
 export type SchemaVersion = (typeof SUPPORTED_SCHEMA_VERSIONS)[number];
 
 // ---------------------------------------------------------------------------
@@ -51,12 +55,28 @@ export interface ActionDefinition {
 export type Intensity = 'calm' | 'warning' | 'critical';
 export const INTENSITIES: readonly Intensity[] = ['calm', 'warning', 'critical'];
 
+/** v0.3: a phase played as a real-time fight. */
+export interface FightRef {
+  /** A fight registered in src/game/fights.ts. */
+  id: string;
+  /** Where winning the fight leads. */
+  target: ActionTarget;
+  /** Shown after the fight is won. */
+  feedback?: string;
+}
+
+/** Patience lost per hit taken in a fight. */
+export const FIGHT_HIT_COST = 1;
+
 export interface PhaseDefinition {
   id: string;
   title: string;
   description: string;
   cue: string;
+  /** Empty for fight phases. */
   actions: readonly ActionDefinition[];
+  /** v0.3: the phase is a real-time fight instead of a choice of actions. */
+  fight?: FightRef;
   /** v0.2: explicit escalation tier. `critical` phases are the boss rounds. */
   intensity?: Intensity;
 }
@@ -92,6 +112,7 @@ export type ValidationCode =
   | 'unsupported-version'
   | 'invalid-value'
   | 'unknown-scene'
+  | 'unknown-fight'
   | 'unsupported-cue'
   | 'duplicate-phase-id'
   | 'duplicate-action-id'
@@ -118,13 +139,22 @@ export type SceneCatalog = Readonly<Record<string, { readonly cues: readonly str
 // Runtime state & events
 // ---------------------------------------------------------------------------
 
-export type GameEvent = { type: 'ACT'; actionId: string; skill?: SkillResult } | { type: 'RESTART' };
+export type GameEvent =
+  | { type: 'ACT'; actionId: string; skill?: SkillResult }
+  /** v0.3: the player took a hit in the current fight phase. */
+  | { type: 'HIT'; attack: AttackKind }
+  /** v0.3: the player won the current fight phase. */
+  | { type: 'FIGHT_WON' }
+  | { type: 'RESTART' };
 
 /** One accepted action. Extension to the documented GameState to support feedback and logs. */
 export interface TurnRecord {
   /** Phase in which the action was taken. */
   phaseId: string;
+  /** The action ID; for fight turns, the attack that hit (`hit`) or the fight ID (`won`). */
   actionId: string;
+  /** Present only for fight turns. */
+  fight?: 'hit' | 'won';
   /** Patience actually charged for this turn (the skill failure cost if the check failed). */
   patienceCost: number;
   patienceAfter: number;
@@ -136,9 +166,9 @@ export interface GameState {
   phaseId: string;
   patience: number;
   patienceSpent: number;
-  /** IDs of accepted actions, in order. */
+  /** IDs of accepted actions, in order (fight turns are only in `turns`). */
   history: string[];
-  /** Same order as `history`, with the phase context each action needs to be described. */
+  /** Every accepted turn — actions and fight hits / wins — with the context needed to describe it. */
   turns: TurnRecord[];
   outcome: Outcome | null;
 }

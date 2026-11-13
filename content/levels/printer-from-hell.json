@@ -1,154 +1,51 @@
 {
-  "schemaVersion": "0.2",
+  "schemaVersion": "0.3",
   "id": "printer-from-hell",
   "title": "地狱打印机",
   "objective": "成功打印一张纸",
   "sceneId": "printer",
-  "initialPatience": 3,
+  "initialPatience": 5,
   "initialPhaseId": "offline",
   "phases": [
     {
       "id": "offline",
       "title": "打印机离线",
-      "description": "它就在你面前，但电脑坚持说它不在。",
+      "description": "它就在你面前，但电脑坚持说它不在。它甚至开始朝你扔纸。",
       "cue": "offline",
       "intensity": "calm",
-      "actions": [
-        {
-          "id": "reconnect",
-          "label": "检查连接",
-          "patienceCost": 0,
-          "target": { "type": "phase", "id": "queue" },
-          "feedback": "你插紧了 USB 线。打印机沉默了三秒，然后突然上线——它看起来不太高兴。"
-        },
-        {
-          "id": "print-again",
-          "label": "再按一次打印",
-          "patienceCost": 1,
-          "target": { "type": "phase", "id": "offline" },
-          "feedback": "电脑又弹出一次“打印机离线”。打印机的指示灯朝你眨了眨眼。"
-        }
-      ]
+      "fight": {
+        "id": "printer-offline",
+        "target": { "type": "phase", "id": "queue" },
+        "feedback": "你把 USB 线插了回去。打印机沉默了三秒，然后突然上线——它看起来不太高兴。"
+      }
     },
     {
       "id": "queue",
       "title": "队列堵塞",
-      "description": "前面还有 99 份任务，其中一份来自上个学期。",
+      "description": "前面还有 99 份任务，其中一份来自上个学期。打印机一边处理队列，一边朝你喷墨粉。",
       "cue": "queue",
       "intensity": "warning",
-      "actions": [
-        {
-          "id": "clear-queue",
-          "label": "清理旧任务",
-          "patienceCost": 0,
-          "target": { "type": "phase", "id": "jam" },
-          "feedback": "99 份任务被清空。打印机开始吞纸……然后发出一声不祥的咔嚓。"
-        },
-        {
-          "id": "add-copy",
-          "label": "追加一份试试",
-          "patienceCost": 1,
-          "target": { "type": "phase", "id": "queue" },
-          "feedback": "队列变成了 100 份。打印机满意地哼了一声。"
-        }
-      ]
+      "fight": {
+        "id": "printer-queue",
+        "target": { "type": "phase", "id": "jam" },
+        "feedback": "队列被清空了。打印机开始吞纸……然后发出一声不祥的咔嚓。"
+      }
     },
     {
       "id": "jam",
-      "title": "第一回合：盖板",
-      "description": "打印机吞下了那张纸，盖板死死咬住不放。看准时机掀开它。",
+      "title": "卡纸：最终 Boss",
+      "description": "打印机吞下了那张纸，并决定成为今天的最终 Boss。躲纸、挡墨、打断它的更新，把纸拽出来。",
       "cue": "jam",
       "intensity": "critical",
-      "actions": [
-        {
-          "id": "open-lid",
-          "label": "看准时机掀开盖板",
-          "patienceCost": 0,
-          "target": { "type": "phase", "id": "jam-tug" },
-          "feedback": "盖板弹开了！打印机发出一声不甘心的蜂鸣。",
-          "skill": {
-            "type": "timing",
-            "onFail": {
-              "patienceCost": 1,
-              "target": { "type": "phase", "id": "jam" },
-              "feedback": "盖板猛地合上，夹住了你的手指。"
-            }
-          }
-        },
-        {
-          "id": "slap-side",
-          "label": "拍打机身侧面",
-          "patienceCost": 1,
-          "target": { "type": "phase", "id": "jam-tug" },
-          "feedback": "盖板被你拍松了，但打印机朝你脸上吐了一张白纸。"
-        }
-      ]
-    },
-    {
-      "id": "jam-tug",
-      "title": "第二回合：拔河",
-      "description": "纸露出了一角，打印机正在把它往回吸。连续发力，把它拽出来。",
-      "cue": "jam",
-      "intensity": "critical",
-      "actions": [
-        {
-          "id": "pull-steady",
-          "label": "连续发力拽纸",
-          "patienceCost": 0,
-          "target": { "type": "phase", "id": "jam-final" },
-          "feedback": "纸被你一寸一寸拽了出来，打印机的齿轮在尖叫。",
-          "skill": {
-            "type": "mash",
-            "onFail": {
-              "patienceCost": 1,
-              "target": { "type": "phase", "id": "jam-tug" },
-              "feedback": "你的力气没跟上，纸又被吸回去一截。"
-            }
-          }
-        },
-        {
-          "id": "pull-hard",
-          "label": "用力扯出来",
-          "patienceCost": 1,
-          "target": { "type": "phase", "id": "jam-final" },
-          "feedback": "纸撕掉了一角。打印机愤怒地喷了你一脸墨粉。"
-        }
-      ]
-    },
-    {
-      "id": "jam-final",
-      "title": "最终回合：最后两厘米",
-      "description": "那张纸离自由只差两厘米。打印机在做最后的挣扎。",
-      "cue": "jam",
-      "intensity": "critical",
-      "actions": [
-        {
-          "id": "release-paper",
-          "label": "看准时机取出卡纸",
-          "patienceCost": 0,
-          "target": { "type": "resolve" },
-          "feedback": "卡纸完整地滑了出来。打印机安静了。",
-          "skill": {
-            "type": "timing",
-            "onFail": {
-              "patienceCost": 1,
-              "target": { "type": "phase", "id": "jam-final" },
-              "feedback": "时机不对，纸卡得更深了。"
-            }
-          }
-        },
-        {
-          "id": "unplug",
-          "label": "拔掉电源再插回去",
-          "patienceCost": 1,
-          "target": { "type": "resolve" },
-          "feedback": "屏幕黑了三秒，然后它若无其事地吐出一张纸。"
-        }
-      ]
+      "fight": {
+        "id": "printer-boss",
+        "target": { "type": "resolve" },
+        "feedback": "最后一拽，卡纸完整地滑了出来。打印机安静了。"
+      }
     }
   ],
   "endings": {
-    "perfect": { "title": "你打印了一张纸", "description": "没有损失耐心。今天，机器服从了人类。" },
+    "perfect": { "title": "你打印了一张纸", "description": "一次都没被打中。今天，机器服从了人类。" },
     "normal": { "title": "纸出来了", "description": "过程不太体面，但至少可以交作业了。" },
     "failure": { "title": "耐心已耗尽", "description": "打印机仍在待机。你需要先休息一下。" }
   }

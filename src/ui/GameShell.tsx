@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { LevelDefinition, SceneProps, SkillResult } from '../game/contracts';
 import { findAction, findPhase } from '../game/engine';
+import type { AttackKind } from '../game/fight';
+import { getFight } from '../game/fights';
 import { useGame } from '../game/useGame';
 import { SceneHost } from '../scenes/SceneHost';
 import { ActionPanel } from './ActionPanel';
 import { BossHud } from './BossHud';
 import { INTENSITY_LABEL, OUTCOME_STATUS, UI } from './copy';
 import { describeLastTurn } from './feedback';
-import { initialAssist, useGameShortcuts, usePrefersReducedMotion } from './hooks';
+import { FightArena } from './FightArena';
+import { fightSeed, initialAssist, useGameShortcuts, usePrefersReducedMotion } from './hooks';
 import { PatienceMeter } from './PatienceMeter';
 import { ResultPanel } from './ResultPanel';
 import { SkillChallenge } from './SkillChallenge';
@@ -15,7 +18,7 @@ import { SkillChallenge } from './SkillChallenge';
 /** Generic level layout. Everything level-specific comes from `level`. */
 export function GameShell({ level }: { level: LevelDefinition }) {
   const game = useGame(level);
-  const { state, phase, actions, intensity, progress, bossHealth, lastTurn, act, restart: restartGame } = game;
+  const { state, phase, actions, intensity, progress, lastTurn, act, hit, winFight, restart: restartGame } = game;
   const reducedMotion = usePrefersReducedMotion();
   const consoleRef = useRef<HTMLElement>(null);
   const windowRef = useRef<HTMLDivElement>(null);
@@ -25,10 +28,35 @@ export function GameShell({ level }: { level: LevelDefinition }) {
   const challengeAction = challengeId ? actions.find((a) => a.id === challengeId) : undefined;
   const challenge = challengeAction?.skill ? { ...challengeAction, skill: challengeAction.skill } : null;
 
+  /** Bumped on every restart so a fight in the initial phase starts over too. */
+  const [run, setRun] = useState(0);
+  const fight = phase.fight ? getFight(phase.fight.id) : undefined;
+  /** Live HP of the current fight, reported by the arena (presentation only). */
+  const [fightHp, setFightHp] = useState<{ key: string; health: number } | null>(null);
+  const fightKey = `${run}:${state.phaseId}`;
+  const isBossFight = fight !== undefined && intensity === 'critical';
+  const bossHealth = !phase.fight
+    ? game.bossHealth
+    : !isBossFight
+      ? null
+      : state.outcome === 'perfect' || state.outcome === 'normal'
+        ? 0
+        : fightHp?.key === fightKey
+          ? fightHp.health
+          : 1;
+
   const restart = useCallback(() => {
     setChallengeId(null);
+    setRun((n) => n + 1);
     restartGame();
   }, [restartGame]);
+
+  const onFightHit = useCallback((attack: AttackKind) => hit(attack), [hit]);
+  const onFightHealth = useCallback((health: number) => setFightHp({ key: fightKey, health }), [fightKey]);
+  const onFightWon = useCallback(() => {
+    setFightHp(null);
+    winFight();
+  }, [winFight]);
 
   const choose = useCallback(
     (actionId: string) => {
@@ -55,12 +83,13 @@ export function GameShell({ level }: { level: LevelDefinition }) {
 
   // When the focused button disappears (phase change, restart, closed check), keep focus in the console.
   useEffect(() => {
-    if (state.outcome || challengeId) return; // ResultPanel and SkillChallenge focus their own buttons.
+    // ResultPanel, SkillChallenge and FightArena focus their own buttons.
+    if (state.outcome || challengeId || phase.fight) return;
     const active = document.activeElement;
     if (!active || active === document.body) {
       consoleRef.current?.querySelector<HTMLButtonElement>('.btn--action')?.focus();
     }
-  }, [state.phaseId, state.outcome, state.turns.length, challengeId]);
+  }, [state.phaseId, state.outcome, state.turns.length, challengeId, phase.fight]);
 
   // The boss hits back: shake the window on every turn that cost patience.
   const turnCount = state.turns.length;
@@ -100,6 +129,7 @@ export function GameShell({ level }: { level: LevelDefinition }) {
       data-outcome={state.outcome ?? undefined}
       data-low-patience={state.patience === 1 || undefined}
       data-boss={bossHealth !== null || undefined}
+      data-fight={(fight && !state.outcome) || undefined}
     >
       <div className="window" ref={windowRef}>
         <header className="titlebar">
@@ -179,8 +209,24 @@ export function GameShell({ level }: { level: LevelDefinition }) {
                 ending={level.endings[state.outcome]}
                 patienceSpent={state.patienceSpent}
                 steps={state.turns.length}
+                hits={
+                  level.phases.some((p) => p.fight)
+                    ? state.turns.filter((t) => t.fight === 'hit').length
+                    : undefined
+                }
                 printed={level.objective}
                 onRestart={restart}
+              />
+            ) : fight ? (
+              <FightArena
+                key={fightKey}
+                fight={fight}
+                seed={fightSeed()}
+                assist={assist}
+                isBoss={isBossFight}
+                onHit={onFightHit}
+                onWon={onFightWon}
+                onHealth={onFightHealth}
               />
             ) : challenge ? (
               <SkillChallenge
@@ -195,7 +241,7 @@ export function GameShell({ level }: { level: LevelDefinition }) {
             )}
 
             <p className="feedback" data-tone={feedback?.tone ?? 'idle'} role="status" aria-live="polite">
-              {feedback?.text ?? UI.feedbackIdle}
+              {feedback?.text ?? (phase.fight ? UI.feedbackIdleFight : UI.feedbackIdle)}
             </p>
 
             <section className="panel log" aria-labelledby="log-heading">
@@ -209,11 +255,22 @@ export function GameShell({ level }: { level: LevelDefinition }) {
                   {state.turns.map((turn, i) => {
                     const p = findPhase(level, turn.phaseId);
                     const a = p && findAction(p, turn.actionId);
+                    const label =
+                      turn.fight === 'hit'
+                        ? UI.hitLog[turn.actionId as AttackKind] ?? turn.actionId
+                        : turn.fight === 'won'
+                          ? UI.fightWonLog(p?.title ?? turn.phaseId)
+                          : a?.label ?? turn.actionId;
                     return (
-                      <li key={i} className="log__item" data-hurt={turn.patienceCost > 0 || undefined}>
+                      <li
+                        key={i}
+                        className="log__item"
+                        data-hurt={turn.patienceCost > 0 || undefined}
+                        data-fight={turn.fight}
+                      >
                         <span className="log__index">{String(i + 1).padStart(2, '0')}</span>
                         <span className="log__label">
-                          {a?.label ?? turn.actionId}
+                          {label}
                           {turn.skill && (
                             <span className="log__skill" data-skill-result={turn.skill}>
                               {turn.skill === 'success' ? UI.logSkillSuccess : UI.logSkillFail}
@@ -231,7 +288,7 @@ export function GameShell({ level }: { level: LevelDefinition }) {
             </section>
 
             <div className="console__footer">
-              <p className="hint">{UI.keyboardHint}</p>
+              <p className="hint">{phase.fight ? UI.fightKeyboardHint : UI.keyboardHint}</p>
               <button
                 type="button"
                 className="btn btn--ghost btn--small assist-toggle"

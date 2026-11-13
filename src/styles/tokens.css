@@ -75,6 +75,21 @@
   --skew: 0deg;
   --scanline-opacity: 0;
 
+  /* real-time fight arena */
+  --c-fight-bg: #221c1e;
+  --c-fight-lane: rgb(255 255 255 / 0.04);
+  --c-fight-line: rgb(255 255 255 / 0.12);
+  --c-fight-ink: #f4eeee;
+  --c-fight-warn: #f5a524;
+  --c-fight-warn-soft: rgb(245 165 36 / 0.22);
+  --c-fight-paper: #fbfbf8;
+  --c-fight-weak: #3ad07a;
+  --c-fight-stun: #6fb4ff;
+  --c-fight-toner: rgb(8 6 7 / 0.82);
+  --c-fight-player: #f4eeee;
+  --c-fight-shield: #6fb4ff;
+  --fight-h: clamp(250px, 42vh, 320px);
+
   /* layout */
   --window-max: 1120px;
   --device-min-h: 300px;

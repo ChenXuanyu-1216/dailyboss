@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { validateLevel } from '../src/game/validateLevel';
 import { loadLevel, LEVEL_SOURCES } from '../src/app/levels';
 import { SCENE_CATALOG } from '../src/scenes/catalog';
-import { codesOf, errorsOf, rawPrinter } from './helpers';
+import { codesOf, errorsOf, rawPrinter, rawShipped } from './helpers';
 import printerV01 from './fixtures/printer-v0.1.json';
 
 describe('shipped content', () => {
@@ -11,8 +11,11 @@ describe('shipped content', () => {
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.value.title).toBe('地狱打印机');
-      expect(result.value.phases.map((p) => p.id)).toEqual(['offline', 'queue', 'jam', 'jam-tug', 'jam-final']);
-      expect(result.value.schemaVersion).toBe('0.2');
+      expect(result.value.phases.map((p) => p.id)).toEqual(['offline', 'queue', 'jam']);
+      expect(result.value.schemaVersion).toBe('0.3');
+      // Every phase of the shipped level is a real-time fight: no menu to click through.
+      expect(result.value.phases.map((p) => p.fight?.id)).toEqual(['printer-offline', 'printer-queue', 'printer-boss']);
+      expect(result.value.phases.every((p) => p.actions.length === 0)).toBe(true);
     }
   });
 
@@ -363,5 +366,88 @@ describe('protocol v0.2 fields', () => {
     });
     raw.phases[2].actions[0].skill.onFail.target.id = 'void';
     expect(errorsOf(raw)).toEqual([expect.objectContaining({ code: 'trap-phase', path: 'phases[5]' })]);
+  });
+});
+
+describe('protocol v0.3 fights', () => {
+  const fightPhase = (id: string, target: object, extra: object = {}) => ({
+    id,
+    title: id,
+    description: 'd',
+    cue: 'jam',
+    fight: { id: 'printer-boss', target, ...extra },
+  });
+
+  it('accepts fight phases and keeps the fight in the result', () => {
+    const result = validateLevel(rawShipped(), SCENE_CATALOG);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.phases[2]!.fight).toEqual({
+      id: 'printer-boss',
+      target: { type: 'resolve' },
+      feedback: expect.any(String),
+    });
+    expect(Object.isFrozen(result.value.phases[2]!.fight)).toBe(true);
+  });
+
+  it('rejects `fight` in a v0.2 file (its meaning must not change silently)', () => {
+    const raw = rawShipped();
+    raw.schemaVersion = '0.2';
+    expect(codesOf(raw)).toContain('unknown-field');
+  });
+
+  it('rejects an unregistered fight id', () => {
+    const raw = rawShipped();
+    raw.phases[0].fight.id = 'printer-dance-off';
+    const errors = errorsOf(raw);
+    expect(errors.map((e) => e.code)).toContain('unknown-fight');
+    expect(errors.find((e) => e.code === 'unknown-fight')!.path).toBe('phases[0].fight.id');
+  });
+
+  it('rejects a phase with both a fight and actions', () => {
+    const raw = rawShipped();
+    raw.phases[0].actions = [{ id: 'a', label: 'a', patienceCost: 0, target: { type: 'resolve' } }];
+    const errors = errorsOf(raw);
+    expect(errors.some((e) => e.path === 'phases[0].actions' && e.code === 'invalid-value')).toBe(true);
+  });
+
+  it('still requires actions on phases without a fight', () => {
+    const raw = rawShipped();
+    delete raw.phases[0].fight;
+    expect(errorsOf(raw).some((e) => e.path === 'phases[0].actions' && e.code === 'missing-field')).toBe(true);
+  });
+
+  it('validates the fight shape: required target, no unknown fields, non-empty feedback', () => {
+    const raw = rawShipped();
+    delete raw.phases[0].fight.target;
+    raw.phases[1].fight.script = 'alert(1)';
+    raw.phases[2].fight.feedback = '';
+    const errors = errorsOf(raw);
+    expect(errors.some((e) => e.path === 'phases[0].fight.target' && e.code === 'missing-field')).toBe(true);
+    expect(errors.some((e) => e.path === 'phases[1].fight.script' && e.code === 'unknown-field')).toBe(true);
+    expect(errors.some((e) => e.path === 'phases[2].fight.feedback' && e.code === 'invalid-value')).toBe(true);
+  });
+
+  it('checks fight targets for references, reachability and traps', () => {
+    const missing = rawShipped();
+    missing.phases[0].fight.target = { type: 'phase', id: 'nowhere' };
+    expect(errorsOf(missing).find((e) => e.code === 'unknown-phase-ref')!.path).toBe('phases[0].fight.target.id');
+
+    const trap = {
+      ...rawShipped(),
+      phases: [fightPhase('a', { type: 'phase', id: 'b' }), fightPhase('b', { type: 'phase', id: 'b' })],
+      initialPhaseId: 'a',
+    };
+    expect(codesOf(trap)).toContain('no-reachable-resolve');
+
+    const ok = { ...rawShipped(), phases: [fightPhase('a', { type: 'resolve' })], initialPhaseId: 'a' };
+    expect(codesOf(ok)).toEqual([]);
+  });
+
+  it('lets a v0.3 level mix fight phases and action phases', () => {
+    const raw = rawPrinter();
+    raw.schemaVersion = '0.3';
+    raw.phases[4] = fightPhase('jam-final', { type: 'resolve' });
+    expect(codesOf(raw)).toEqual([]);
   });
 });

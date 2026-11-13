@@ -10,7 +10,7 @@ import {
 import { validateLevel } from '../src/game/validateLevel';
 import { SCENE_CATALOG } from '../src/scenes/catalog';
 import printerV01 from './fixtures/printer-v0.1.json';
-import { rawPrinter, validPrinter } from './helpers';
+import { rawPrinter, validPrinter, validShipped } from './helpers';
 
 /** Steps are action IDs; a skill action is written `id:success` or `id:fail`. */
 function event(step: string): GameEvent {
@@ -316,5 +316,70 @@ describe('purity', () => {
   it('is deterministic for the same inputs', () => {
     const path = ['print-again', 'reconnect', 'add-copy', 'clear-queue', 'open-lid:fail', 'slap-side', 'pull-steady:success'];
     expect(play(level, path)).toEqual(play(level, path));
+  });
+});
+
+describe('fight phases (v0.3)', () => {
+  const shipped = validShipped();
+  const HIT_PAPER: GameEvent = { type: 'HIT', attack: 'paper' };
+  const WON: GameEvent = { type: 'FIGHT_WON' };
+  const run = (events: GameEvent[], from = createInitialState(shipped)) =>
+    events.reduce<GameState>((s, e) => transition(shipped, s, e), from);
+
+  it('fight phases offer no actions and ignore ACT events', () => {
+    const s = createInitialState(shipped);
+    expect(getAvailableActions(shipped, s)).toEqual([]);
+    expect(transition(shipped, s, { type: 'ACT', actionId: 'reconnect' })).toBe(s);
+  });
+
+  it('winning every fight without a hit is perfect', () => {
+    const s = run([WON, WON, WON]);
+    expect(s.outcome).toBe('perfect');
+    expect(s.patience).toBe(5);
+    expect(s.history).toEqual([]);
+    expect(s.turns.map((t) => [t.phaseId, t.fight, t.actionId])).toEqual([
+      ['offline', 'won', 'printer-offline'],
+      ['queue', 'won', 'printer-queue'],
+      ['jam', 'won', 'printer-boss'],
+    ]);
+  });
+
+  it('each hit costs one patience and is recorded; any hit makes the win normal', () => {
+    const s = run([HIT_PAPER, WON, { type: 'HIT', attack: 'toner' }, WON]);
+    expect(s.patience).toBe(3);
+    expect(s.phaseId).toBe('jam');
+    expect(s.turns.filter((t) => t.fight === 'hit').map((t) => [t.actionId, t.patienceCost, t.patienceAfter])).toEqual([
+      ['paper', 1, 4],
+      ['toner', 1, 3],
+    ]);
+    expect(run([WON], s).outcome).toBe('normal');
+  });
+
+  it('the fifth hit ends the run in failure, and nothing is accepted afterwards', () => {
+    const s = run(Array.from({ length: 5 }, () => HIT_PAPER));
+    expect(s.outcome).toBe('failure');
+    expect(s.patience).toBe(0);
+    expect(run([WON, HIT_PAPER], s)).toBe(s);
+  });
+
+  it('ignores unknown attacks and fight events outside fight phases', () => {
+    const s = createInitialState(shipped);
+    expect(transition(shipped, s, { type: 'HIT', attack: 'stapler' } as unknown as GameEvent)).toBe(s);
+    const menu = createInitialState(level);
+    expect(transition(level, menu, HIT_PAPER)).toBe(menu);
+    expect(transition(level, menu, WON)).toBe(menu);
+  });
+
+  it('RESTART returns to the first fight with full patience', () => {
+    const s = run([HIT_PAPER, WON, { type: 'RESTART' }]);
+    expect(s).toEqual(createInitialState(shipped));
+  });
+
+  it('boss health is null in the warm-ups and set once the boss fight starts', () => {
+    expect(getBossHealth(shipped, run([]))).toBeNull();
+    expect(getBossHealth(shipped, run([WON]))).toBeNull();
+    expect(getBossHealth(shipped, run([WON, WON]))).toBe(1);
+    expect(getBossHealth(shipped, run([WON, WON, WON]))).toBe(0);
+    expect(getIntensity(shipped, run([WON, WON]))).toBe('critical');
   });
 });

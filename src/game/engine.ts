@@ -1,3 +1,4 @@
+import { FIGHT_HIT_COST } from './contracts';
 import type {
   ActionDefinition,
   ActionTarget,
@@ -7,7 +8,9 @@ import type {
   LevelDefinition,
   PhaseDefinition,
   SkillResult,
+  TurnRecord,
 } from './contracts';
+import { ATTACK_KINDS, type AttackKind } from './fight';
 
 /**
  * Pure rule engine. No timers, randomness, rendering or I/O.
@@ -23,6 +26,10 @@ import type {
  * 5. Otherwise a phase target moves to that phase; resolve ends in success.
  * 6. Success with zero total cost → perfect, else normal.
  * 7. RESTART restores the initial state.
+ *
+ * Fight phases (v0.3) have no actions. The real-time fight runs in the presentation layer and
+ * reports only two things: HIT (costs FIGHT_HIT_COST patience, step 3–4 apply) and FIGHT_WON
+ * (free, follows `fight.target`, steps 5–6 apply). Both are ignored outside a fight phase.
  */
 
 export function createInitialState(level: LevelDefinition): GameState {
@@ -50,6 +57,10 @@ export function transition(level: LevelDefinition, state: GameState, event: Game
       return createInitialState(level);
     case 'ACT':
       return act(level, state, event.actionId, event.skill);
+    case 'HIT':
+      return hit(level, state, event.attack);
+    case 'FIGHT_WON':
+      return fightWon(level, state);
     default:
       return state;
   }
@@ -102,6 +113,45 @@ function act(level: LevelDefinition, state: GameState, actionId: string, skill: 
     return { ...next, outcome: patienceSpent === 0 ? 'perfect' : 'normal' };
   }
   return { ...next, phaseId: branch.target.id };
+}
+
+function isAttackKind(v: unknown): v is AttackKind {
+  return (ATTACK_KINDS as readonly unknown[]).includes(v);
+}
+
+function record(state: GameState, turn: TurnRecord, patience: number, patienceSpent: number): GameState {
+  return { ...state, patience, patienceSpent, turns: [...state.turns, turn] };
+}
+
+function hit(level: LevelDefinition, state: GameState, attack: unknown): GameState {
+  if (state.outcome !== null || !isAttackKind(attack)) return state;
+  const phase = findPhase(level, state.phaseId);
+  if (!phase?.fight) return state;
+  const patience = Math.max(0, state.patience - FIGHT_HIT_COST);
+  const next = record(
+    state,
+    { phaseId: phase.id, actionId: attack, fight: 'hit', patienceCost: FIGHT_HIT_COST, patienceAfter: patience },
+    patience,
+    state.patienceSpent + FIGHT_HIT_COST,
+  );
+  return patience === 0 ? { ...next, outcome: 'failure' } : next;
+}
+
+function fightWon(level: LevelDefinition, state: GameState): GameState {
+  if (state.outcome !== null) return state;
+  const phase = findPhase(level, state.phaseId);
+  const fight = phase?.fight;
+  if (!phase || !fight) return state;
+  const next = record(
+    state,
+    { phaseId: phase.id, actionId: fight.id, fight: 'won', patienceCost: 0, patienceAfter: state.patience },
+    state.patience,
+    state.patienceSpent,
+  );
+  if (fight.target.type === 'resolve') {
+    return { ...next, outcome: next.patienceSpent === 0 ? 'perfect' : 'normal' };
+  }
+  return { ...next, phaseId: fight.target.id };
 }
 
 // ---------------------------------------------------------------------------

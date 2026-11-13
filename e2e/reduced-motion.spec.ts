@@ -1,10 +1,13 @@
-import { ASSIST, BOSS_SKILLS, expect, test } from './fixtures';
+import { expect, test } from './fixtures';
 
 test.use({ reducedMotion: 'reduce' });
 
 test('reduced motion disables CSS motion and keeps gameplay intact', async ({ game, page }) => {
-  await game.open(ASSIST);
-  await game.act('reconnect', 'clear-queue');
+  test.setTimeout(90_000);
+  await game.openPaused();
+  await game.installBot();
+  await game.clearFight();
+  await game.clearFight();
   await expect(game.app).toHaveAttribute('data-intensity', 'critical');
 
   const durations = await page.evaluate(() => ({
@@ -14,34 +17,26 @@ test('reduced motion disables CSS motion and keeps gameplay intact', async ({ ga
   }));
   expect(durations).toEqual({ viewport: '0s', tag: '0s', skew: '0deg' });
 
-  // The short-lived title card is checked with a paused clock below.
-  await game.act(...BOSS_SKILLS);
+  await game.fightStart.click();
+  await game.runUntil(async () => (await page.locator('.fight__weak').count()) > 0, { stepMs: 250 });
+  expect(await page.locator('.fight__weak').evaluate((el) => getComputedStyle(el).animationName)).toBe('none');
+  expect(await page.locator('.fight__player').evaluate((el) => getComputedStyle(el).transitionDuration)).toBe('0s');
+
+  await game.runUntil(async () => (await game.app.getAttribute('data-outcome')) !== null);
   await game.expectOutcome('perfect');
   await page.keyboard.press('r');
   await game.expectInitialState();
 });
 
 test('reduced motion shows the boss title card without animation, then clears it', async ({ game, page }) => {
-  // The card lives 1.8 s; a paused clock keeps the check independent of runner speed.
-  await page.clock.install({ time: new Date('2026-01-01T09:00:00Z') });
-  await game.open(`?render=simple&${ASSIST.slice(1)}`);
-  await page.clock.pauseAt(new Date('2026-01-01T10:00:00Z'));
-  await game.act('reconnect', 'clear-queue');
+  test.setTimeout(60_000);
+  await game.openPaused();
+  await game.installBot();
+  await game.clearFight();
+  await game.clearFight();
   await expect(game.bossCard).toBeVisible();
   await expect(game.bossCard).toContainText('BOSS 出现');
   expect(await game.bossCard.evaluate((el) => getComputedStyle(el).animationName)).toBe('none');
   await page.clock.runFor(1900);
   await expect(game.bossCard).toHaveCount(0);
-});
-
-test('reduced motion slows the timing needle', async ({ game, page }) => {
-  // With reduced motion a sweep takes 2600 ms: at 400 ms the needle is only at ~0.31 (a miss);
-  // at 650 ms it is at 0.5 (a hit).
-  await page.clock.install({ time: new Date('2026-01-01T09:00:00Z') });
-  await game.open('?render=simple');
-  await page.clock.pauseAt(new Date('2026-01-01T10:00:00Z'));
-  await game.act('reconnect', 'clear-queue', 'open-lid');
-  await page.clock.runFor(650);
-  await page.keyboard.press('Space');
-  await expect(game.skillVerdict).toHaveText('成功！');
 });

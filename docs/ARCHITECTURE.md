@@ -16,6 +16,8 @@ React 派发用户事件；界面与场景消费同一份状态。动画完成�
 
 技巧判定（v0.2）由表现层的小游戏完成：用 `performance.now()` 时间戳（而非帧数）判断，结果只以 `'success' | 'fail'` 随 ACT 事件传入引擎。引擎本身仍然没有计时器。
 
+实时战斗（v0.3）分两层：`src/game/fight.ts` 是纯函数的战斗模拟，`stepFight(def, state, input, dtMs)` 按 10 ms 子步推进并返回新状态与事件，随机数是状态里带种子的生成器；`src/ui/FightArena.tsx` 拥有时钟（`requestAnimationFrame` 中的 `performance.now()` 差值，单帧最多 100 ms，辅助模式乘 0.65）和输入设备。规则引擎看不到战斗状态，只接收结果：每次被击中一个 `HIT` 事件，打赢时一个 `FIGHT_WON` 事件。
+
 ## 目标文件与职责
 
 | 位置 | 职责 |
@@ -33,6 +35,9 @@ React 派发用户事件；界面与场景消费同一份状态。动画完成�
 | src/ui/skills.ts | 小游戏的纯函数规则（指针位置、绿区、连打窗口） |
 | src/ui/SkillChallenge.tsx | 时机／连打小游戏界面，产出判定结果 |
 | src/ui/BossHud.tsx | Boss 血条、「BOSS 出现」标题卡、浮动扣耐心提示 |
+| src/game/fight.ts | 实时战斗的纯函数模拟（v0.3）：招式、技能、命中与胜负 |
+| src/game/fights.ts | 已登记的战斗（招式编排与数值），供关卡 `fight.id` 引用与校验 |
+| src/ui/FightArena.tsx | 战斗区域：时钟、键盘与触屏输入、渲染，向上报告被击中与胜利 |
 | src/ui/ResultPanel.tsx | 结局、重开和分享 |
 | src/scenes/catalog.ts | sceneId 与支持的 cue 清单（不依赖 React，供校验使用） |
 | src/scenes/registry.ts | sceneId 到本地组件的白名单（懒加载） |
@@ -43,8 +48,9 @@ React 派发用户事件；界面与场景消费同一份状态。动画完成�
 | content/levels/*.json | 阶段、行动、数值和文案 |
 | src/styles/tokens.css | 颜色、间距、字体、边框与动效变量 |
 | public/ | 静态资源（当前仅 favicon） |
-| tests/ | Vitest：配置、规则、反馈与小游戏规则验证 |
+| tests/ | Vitest：配置、规则、反馈、小游戏规则与战斗平衡（脚本玩家见 tests/fightBot.ts） |
 | tests/fixtures/printer-v0.1.json | 原 v0.1 关卡，保证旧协议仍可加载、玩法不变 |
+| tests/fixtures/printer-v0.2.json | 迭代 1 的菜单式 v0.2 关卡，继续覆盖行动与技巧判定规则 |
 | e2e/ | Playwright：针对生产构建（/dailyboss/）的浏览器流程验证 |
 | .github/workflows/ci.yml | CI 与 GitHub Pages 部署 |
 
@@ -75,10 +81,22 @@ React 派发用户事件；界面与场景消费同一份状态。动画完成�
 
 升级方式：把 `schemaVersion` 改为 `"0.2"` 后按需添加上述字段；v0.1 文件无需修改即可继续使用。
 
+### v0.3 增量字段（迭代 2）
+
+`schemaVersion` 可为 `"0.3"`。v0.3 文件可以使用全部 v0.2 字段，另外：
+
+- Phase `fight`：`{ id, target, feedback? }`。`id` 必须是 `src/game/fights.ts` 中已登记的战斗（否则 `unknown-fight`）；`target` 是打赢后的去向（phase 或 resolve），参与引用、可达性与陷阱检查；`feedback` 是打赢后的文案。
+- 战斗阶段不写 `actions`（同时出现时报错）；校验结果中它的 `actions` 为空数组。非战斗阶段仍必须有非空的 `actions`。
+- `fight` 出现在 v0.1／v0.2 文件中按未知字段拒绝。
+
 ## 固定运行接口
 
 ```ts
-type GameEvent = { type: 'ACT'; actionId: string; skill?: 'success' | 'fail' } | { type: 'RESTART' };
+type GameEvent =
+  | { type: 'ACT'; actionId: string; skill?: 'success' | 'fail' }
+  | { type: 'HIT'; attack: 'paper' | 'toner' } // v0.3
+  | { type: 'FIGHT_WON' } // v0.3
+  | { type: 'RESTART' };
 type Outcome = 'perfect' | 'normal' | 'failure';
 
 interface GameState {
@@ -91,7 +109,8 @@ interface GameState {
 }
 
 // patienceCost 为实际扣除值（技巧失败时为 onFail 的消耗）；skill 仅出现在技巧行动上
-interface TurnRecord { phaseId: string; actionId: string; patienceCost: number; patienceAfter: number; skill?: 'success' | 'fail' }
+// 战斗回合：fight 为 'hit'（actionId 为攻击种类）或 'won'（actionId 为战斗 ID）；history 只记录行动
+interface TurnRecord { phaseId: string; actionId: string; fight?: 'hit' | 'won'; patienceCost: number; patienceAfter: number; skill?: 'success' | 'fail' }
 type Result<T> = { ok: true; value: T } | { ok: false; errors: ValidationIssue[] };
 interface ValidationIssue { code: ValidationCode; path: string; message: string }
 
@@ -109,6 +128,7 @@ transition(level: LevelDefinition, state: GameState, event: GameEvent): GameStat
 4. 仍有耐心时，phase 目标切换阶段；resolve 目标结算成功。
 5. 成功且累计消耗为 0 为完美，否则普通。
 6. 重开恢复初始阶段与耐心、清空记录和结局。
+7. 战斗阶段（v0.3）不接受 ACT。`HIT` 扣 1 耐心（同第 2–3 条，归零即失败）；`FIGHT_WON` 不扣耐心，按 `fight.target` 走第 4–5 条。两者在非战斗阶段和终局时都不改变状态。
 
 ## 改动边界
 
@@ -118,6 +138,8 @@ transition(level: LevelDefinition, state: GameState, event: GameEvent): GameStat
 | 模型、配色、灯光和演出 | 场景组件与资源 |
 | 复用玩法的新 Boss | 新 JSON、新场景与注册项 |
 | 新的技巧判定类型 | `SkillType`、校验、`src/ui/skills.ts` 与 `SkillChallenge`；引擎只看结果，无需改动 |
+| 新的战斗或调整战斗数值 | `src/game/fights.ts`（登记即可被 JSON 引用），并在 tests/fight.test.ts 的平衡测试中验证 |
+| 新的招式或技能 | `src/game/fight.ts`（模拟）、`FightArena`（显示与输入）与平衡测试；引擎只看 HIT／FIGHT_WON，无需改动 |
 | 拖拽、物理碰撞等新机制 | 协议、引擎与表现层；另行设计 |
 
 固定的是模块接口，不是永远不变的代码。不兼容协议变更须提升版本并说明迁移方式。

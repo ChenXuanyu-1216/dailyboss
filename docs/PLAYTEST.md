@@ -65,3 +65,25 @@ An informal session, reported second-hand by the project owner: a few friends pl
 **据此做出的改动 / Changes made in response**（迭代 1，见 [ROADMAP.md](ROADMAP.md)）：保留原 MVP 流程与规则，把卡纸阶段扩展为 3 个 Boss 回合，加入时机与连打两种技巧判定、Boss 血条、反击演出（纸张飞出、震屏、「−1 耐心」）、「BOSS 出现」标题卡、胜利打印纸，以及辅助模式。这些改动是否解决问题，需要试玩 #2 验证。
 
 Iteration 1 keeps the original MVP flow and rules, and expands the paper-jam phase into 3 boss rounds with timing and mash skill checks, a boss health bar, counterattacks (flying paper, screen shake, "−1 耐心"), a "BOSS 出现" title card, a victory print, and an assist mode. Whether this fixes the problem needs playtest #2.
+
+### 试玩 #2 — 2026-11-12 前后（由作者于 2026-11-12 转述）/ around 2026-11-12 (reported by the owner on 2026-11-12)
+
+由项目作者转述的一次非正式试玩：几位朋友试玩了迭代 1 的版本（3 回合卡纸 Boss 战，含时机与连打判定）。没有按模板逐人记录，下列未知项如实标为「未记录」。
+
+An informal session, reported second-hand by the project owner: a few friends played the Iteration 1 build (the 3-round paper-jam boss fight with timing and mash checks). It was not recorded per player with the template; unknown fields are marked "not recorded".
+
+- 玩家人数 Players: 几位朋友，具体人数未记录 / a few friends, exact number not recorded
+- 设备 / 浏览器 Device / browser: 未记录 / not recorded
+- 屏幕方向 Orientation: 未记录 / not recorded
+- 显示模式 Display: 未记录 / not recorded
+- 首局用时 First-run completion time: 大多数人不到 3 分钟 / most finished in under 3 minutes
+- 首局结局 First-run outcome: 未记录；大多数人通关 / not recorded; most finished the game
+- 令人困惑的选项或反馈 Confusing choices or feedback: 未报告 / none reported
+- 是否注意到故障升级 Escalation noticeable?: 未记录 / not recorded
+- 是否想再玩 Wanted to replay?: 未记录 / not recorded
+- 观察到的问题 Observed bugs: 未报告 / none reported
+- 其他备注 Other notes: 玩家认为游戏对技巧和复杂操作几乎没有要求。作为动作游戏，应该要求玩家用特定技能打败 Boss，而不是「按空格填满进度条」就能赢并拿到奖励。/ Players felt the game demanded little skill or complex input. As an action game it should make players use specific abilities to defeat the boss, rather than win by "pressing Space to fill a meter".
+
+**据此做出的改动 / Changes made in response**（迭代 2，见 [ROADMAP.md](ROADMAP.md)）：三个阶段全部改为实时战斗。打印机的招式都有预警，每种招式只有一个对应技能：纸张砸向发光的通道（闪避）、墨粉喷满全屏（按住格挡）、弱点短暂露出（走到那条通道拽出）、「安装更新」充能回血（按住重启打断）。去掉了「蛮力选项」，不再有不靠技巧也能推进的按钮。两场热身战各教两个技能，Boss 战三个形态。初始耐心改为 5，每被击中一次扣 1。是否解决问题，需要试玩 #3 验证。
+
+All three phases are now real-time fights. Every printer attack is telegraphed and has exactly one answer: paper aimed at a glowing lane (dodge), toner across the screen (hold block), a briefly exposed weak point (walk to its lane and pull), and an "installing update" charge that heals (hold reset to interrupt). The brute-force options are gone, so no button advances without skill. Two warm-up fights teach two abilities each, and the boss has three stages. Patience is now 5, and each hit costs 1. Whether this fixes the problem needs playtest #3.

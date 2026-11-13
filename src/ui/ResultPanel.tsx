@@ -7,12 +7,14 @@ interface Props {
   ending: EndingDefinition;
   patienceSpent: number;
   steps: number;
+  /** Levels with fights show hits taken instead of steps. */
+  hits?: number;
   /** Text on the victory print (the level objective). */
   printed: string;
   onRestart: () => void;
 }
 
-export function ResultPanel({ outcome, ending, patienceSpent, steps, printed, onRestart }: Props) {
+export function ResultPanel({ outcome, ending, patienceSpent, steps, hits, printed, onRestart }: Props) {
   const buttonRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     buttonRef.current?.focus();
@@ -43,8 +45,8 @@ export function ResultPanel({ outcome, ending, patienceSpent, steps, printed, on
           <dd>{patienceSpent}</dd>
         </div>
         <div>
-          <dt>{UI.steps}</dt>
-          <dd>{steps}</dd>
+          <dt>{hits === undefined ? UI.steps : UI.hitsTaken}</dt>
+          <dd>{hits ?? steps}</dd>
         </div>
       </dl>
       <button ref={buttonRef} type="button" className="btn btn--primary" onClick={onRestart} aria-keyshortcuts="R">

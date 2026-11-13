@@ -1,4 +1,4 @@
-import { ASSIST, BOSS_SKILLS, ROUND_TITLES, expect, requireWebGL, test } from './fixtures';
+import { ASSIST, MAX_PATIENCE, PHASE_TITLES, expect, requireWebGL, test } from './fixtures';
 
 /**
  * Tests tagged @webgl need a real WebGL context (SwiftShader in headless Chromium).
@@ -25,11 +25,13 @@ test.describe('3D scene @webgl', () => {
   // Regression: R3F's renderer teardown calls forceContextLoss(); that must not be reported as a failure.
   test('manual switch to simplified display shows no failure warning, and toggling is repeatable', async ({
     game,
+    page,
   }) => {
     await expect(game.canvas).toBeVisible();
-    await game.act('print-again', 'reconnect');
-    await expect(game.phaseTitle).toHaveText('队列堵塞');
-    await game.expectPatience(2);
+    await game.fightStart.click();
+    await page.keyboard.press('Escape'); // pause: the fight state must survive display changes
+    await expect(game.fight).toHaveAttribute('data-paused', 'true');
+    const lane = await game.fight.getAttribute('data-player-lane');
 
     for (let round = 1; round <= 3; round++) {
       await game.watchCanvasContextLoss();
@@ -37,7 +39,6 @@ test.describe('3D scene @webgl', () => {
       await expect(game.scene).toHaveAttribute('data-render', 'simple');
       await expect(game.canvas).toHaveCount(0);
       await expect(game.simplifiedToggle).toHaveAttribute('aria-pressed', 'true');
-
       // Wait until the old renderer has actually released its context, then check nothing was reported.
       await game.waitForWatchedContextLoss();
       await expect(game.sceneNote, `round ${round}: no failure note`).toHaveText('');
@@ -50,62 +51,41 @@ test.describe('3D scene @webgl', () => {
       await expect(game.simplifiedToggle).toHaveAttribute('aria-pressed', 'false');
 
       // Game state is untouched by display changes.
-      await expect(game.phaseTitle).toHaveText('队列堵塞');
-      await game.expectPatience(2);
-      await expect(game.log).toHaveCount(2);
+      await expect(game.phaseTitle).toHaveText(PHASE_TITLES[0]);
+      await expect(game.fight).toHaveAttribute('data-paused', 'true');
+      await expect(game.fight).toHaveAttribute('data-player-lane', lane!);
+      await game.expectPatience(MAX_PATIENCE);
     }
-
-    await game.act('clear-queue', ...BOSS_SKILLS);
-    await game.expectOutcome('normal');
   });
 
-  test('genuine context loss falls back, gameplay continues, and 3D can be retried', async ({ game }) => {
+  test('genuine context loss falls back, the fight continues, and 3D can be retried', async ({ game }) => {
     await expect(game.canvas).toBeVisible();
-    await game.act('reconnect');
+    await game.fightStart.click();
 
     await game.loseWebGLContext();
     await expect(game.scene).toHaveAttribute('data-render', 'simple');
     await expect(game.sceneNote).toHaveText('3D 渲染中断，已切换为简化显示。');
     await expect(game.simplifiedToggle).toHaveAttribute('aria-pressed', 'true');
-    await expect(game.phaseTitle).toHaveText('队列堵塞');
-
-    // Still playable in the fallback.
-    await game.act('clear-queue');
-    await expect(game.phaseTitle).toHaveText(ROUND_TITLES[0]);
+    await expect(game.fight).toHaveAttribute('data-started', 'true');
+    await expect(game.fight).not.toHaveAttribute('data-paused');
 
     // Retry 3D: a fresh renderer comes up with state preserved.
     await game.simplifiedToggle.click();
     await expect(game.scene).toHaveAttribute('data-render', '3d');
     await expect(game.canvas).toBeVisible();
     await expect(game.sceneNote).toHaveText('');
-    await expect(game.phaseTitle).toHaveText(ROUND_TITLES[0]);
+    await expect(game.phaseTitle).toHaveText(PHASE_TITLES[0]);
+    await expect(game.fight).toHaveAttribute('data-started', 'true');
 
     // And genuine loss is still detected on the new renderer.
     await game.loseWebGLContext();
     await expect(game.sceneNote).toHaveText('3D 渲染中断，已切换为简化显示。');
-
-    await game.act(...BOSS_SKILLS);
-    await game.expectOutcome('perfect');
-  });
-
-  test('boss rounds and counterattacks play in 3D without errors or context loss', async ({ game, page }) => {
-    await expect(game.canvas).toBeVisible();
-    await game.watchCanvasContextLoss();
-    await game.act('reconnect', 'clear-queue', 'slap-side', 'pull-steady');
-    await expect(game.phaseTitle).toHaveText(ROUND_TITLES[2]);
-    await expect(game.hurtPop).toHaveCount(0); // the last turn cost nothing
-    await game.expectBossHealth(33);
-    await game.act('release-paper');
-    await game.expectOutcome('normal');
-    await game.nextFrames();
-    await expect(game.scene).toHaveAttribute('data-render', '3d');
-    expect(await page.evaluate(() => (window as unknown as { __dbContextLost: boolean }).__dbContextLost)).toBe(false);
   });
 
   test('restart resets the scene inputs without remounting the renderer', async ({ game, page }) => {
     await expect(game.canvas).toBeVisible();
-    await game.act('reconnect', 'clear-queue');
-    await expect(game.app).toHaveAttribute('data-intensity', 'critical');
+    await game.fightStart.click();
+    await expect(game.log).toHaveCount(1, { timeout: 15_000 }); // standing still: the first sheet hits
     await game.watchCanvasContextLoss();
     await page.keyboard.press('r');
     await game.expectInitialState();
@@ -116,22 +96,54 @@ test.describe('3D scene @webgl', () => {
   });
 });
 
+test.describe('boss fight in 3D @webgl', () => {
+  test('hits and boss damage play in 3D without errors or context loss', async ({ game, page }) => {
+    test.setTimeout(120_000);
+    // Warm-ups in the simplified display (fast), then switch to 3D for the boss.
+    await game.openPaused();
+    await requireWebGL(game);
+    await game.installBot();
+    await game.clearFight();
+    await game.clearFight();
+    await game.simplifiedToggle.click();
+    await game.runUntil(async () => (await game.canvas.count()) > 0, { stepMs: 200, maxMs: 10_000 });
+    await expect(game.scene).toHaveAttribute('data-render', '3d');
+    await game.watchCanvasContextLoss();
+
+    await game.installBot({ takeHits: 1 });
+    await game.fightStart.click();
+    await game.runUntil(async () => (await game.bossBar.getAttribute('aria-valuenow')) !== '100', {
+      stepMs: 250,
+      maxMs: 20_000,
+    });
+    await expect(game.log.filter({ hasText: '被纸砸中' })).toHaveCount(1);
+    await game.expectPatience(MAX_PATIENCE - 1);
+    await page.clock.runFor(100);
+    await expect(game.scene).toHaveAttribute('data-render', '3d');
+    await expect(game.sceneNote).toHaveText('');
+    expect(await page.evaluate(() => (window as unknown as { __dbContextLost: boolean }).__dbContextLost)).toBe(false);
+  });
+});
+
 test.describe('simplified display by URL', () => {
   test('?render=simple never loads the 3D chunk and is fully playable', async ({ game, page }) => {
+    test.setTimeout(90_000);
     const sceneRequests: string[] = [];
     page.on('request', (r) => {
       if (/PrinterScene-/.test(r.url())) sceneRequests.push(r.url());
     });
-    await game.open(`?render=simple&${ASSIST.slice(1)}`);
+    await game.openPaused();
     await expect(game.scene).toHaveAttribute('data-render', 'simple');
     await expect(game.canvas).toHaveCount(0);
     await expect(page.getByRole('img', { name: /打印机示意：打印机离线/ })).toBeVisible();
     await expect(game.simplifiedToggle).toHaveAttribute('aria-pressed', 'true');
     await expect(game.sceneNote).toHaveText('');
 
-    await game.act('reconnect', 'clear-queue');
+    await game.installBot();
+    await game.clearFight();
+    await game.clearFight();
     await expect(page.locator('.fallback')).toHaveAttribute('data-cue', 'jam');
-    await game.act(...BOSS_SKILLS);
+    await game.clearFight();
     await game.expectOutcome('perfect');
     await expect(page.locator('.fallback')).toHaveAttribute('data-outcome', 'perfect');
     expect(sceneRequests).toEqual([]);
