@@ -8,11 +8,14 @@
  *       are rejected in a v0.1 file so its meaning never silently changes.
  * v0.3: additive — a phase may be a real-time `fight` (src/game/fight.ts) instead of a list of
  *       actions. Hits taken in the fight cost patience; winning it follows `fight.target`.
+ * v0.4: additive — an optional level `intro`: a tagline for the title screen and a few story
+ *       beats played before the first phase. No effect on rules.
  */
 
 import type { AttackKind } from './fight';
 
-export const SUPPORTED_SCHEMA_VERSIONS = ['0.1', '0.2', '0.3'] as const;
+/** Oldest first: a field introduced in one version is allowed in every later one. */
+export const SUPPORTED_SCHEMA_VERSIONS = ['0.1', '0.2', '0.3', '0.4'] as const;
 export type SchemaVersion = (typeof SUPPORTED_SCHEMA_VERSIONS)[number];
 
 // ---------------------------------------------------------------------------
@@ -99,6 +102,28 @@ export interface LevelDefinition {
   initialPhaseId: string;
   phases: readonly PhaseDefinition[];
   endings: Readonly<Record<Outcome, EndingDefinition>>;
+  /** v0.4: title-screen tagline and opening story. Levels without one go straight to play. */
+  intro?: IntroDefinition;
+}
+
+/**
+ * v0.4: illustrations a story beat can show. Deliberately generic (not tied to one boss) so any
+ * everyday-frustration level can use them; drawn by src/ui/IntroSequence.tsx.
+ */
+export type IntroArt = 'clock' | 'document' | 'error' | 'eyes';
+export const INTRO_ARTS: readonly IntroArt[] = ['clock', 'document', 'error', 'eyes'];
+export const MAX_INTRO_BEATS = 6;
+
+export interface IntroBeat {
+  text: string;
+  art?: IntroArt;
+}
+
+export interface IntroDefinition {
+  /** One line under the level name on the title screen. */
+  tagline: string;
+  /** Shown one at a time before the first phase; the player can skip. */
+  beats: readonly IntroBeat[];
 }
 
 // ---------------------------------------------------------------------------

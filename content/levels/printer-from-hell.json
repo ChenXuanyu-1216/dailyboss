@@ -1,8 +1,29 @@
 {
-  "schemaVersion": "0.3",
+  "schemaVersion": "0.4",
   "id": "printer-from-hell",
   "title": "地狱打印机",
   "objective": "成功打印一张纸",
+  "intro": {
+    "tagline": "截止前 13 分钟，你只想打印一张纸。",
+    "beats": [
+      {
+        "art": "clock",
+        "text": "23:47。作业今晚 12 点截止。"
+      },
+      {
+        "art": "document",
+        "text": "文档写完了，排版也调好了。只差最后一步：打印。"
+      },
+      {
+        "art": "error",
+        "text": "「打印机脱机。」它就在你面前，绿灯还亮着。"
+      },
+      {
+        "art": "eyes",
+        "text": "你又按了一次打印。这一次，它睁开了眼睛。"
+      }
+    ]
+  },
   "sceneId": "printer",
   "initialPatience": 5,
   "initialPhaseId": "offline",
@@ -15,7 +36,10 @@
       "intensity": "calm",
       "fight": {
         "id": "printer-offline",
-        "target": { "type": "phase", "id": "queue" },
+        "target": {
+          "type": "phase",
+          "id": "queue"
+        },
         "feedback": "你把 USB 线插了回去。打印机沉默了三秒，然后突然上线——它看起来不太高兴。"
       }
     },
@@ -27,7 +51,10 @@
       "intensity": "warning",
       "fight": {
         "id": "printer-queue",
-        "target": { "type": "phase", "id": "jam" },
+        "target": {
+          "type": "phase",
+          "id": "jam"
+        },
         "feedback": "队列被清空了。打印机开始吞纸……然后发出一声不祥的咔嚓。"
       }
     },
@@ -39,14 +66,25 @@
       "intensity": "critical",
       "fight": {
         "id": "printer-boss",
-        "target": { "type": "resolve" },
+        "target": {
+          "type": "resolve"
+        },
         "feedback": "最后一拽，卡纸完整地滑了出来。打印机安静了。"
       }
     }
   ],
   "endings": {
-    "perfect": { "title": "你打印了一张纸", "description": "一次都没被打中。今天，机器服从了人类。" },
-    "normal": { "title": "纸出来了", "description": "过程不太体面，但至少可以交作业了。" },
-    "failure": { "title": "耐心已耗尽", "description": "打印机仍在待机。你需要先休息一下。" }
+    "perfect": {
+      "title": "你打印了一张纸",
+      "description": "一次都没被打中。今天，机器服从了人类。"
+    },
+    "normal": {
+      "title": "纸出来了",
+      "description": "过程不太体面，但至少可以交作业了。"
+    },
+    "failure": {
+      "title": "耐心已耗尽",
+      "description": "打印机仍在待机。你需要先休息一下。"
+    }
   }
 }

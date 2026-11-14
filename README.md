@@ -23,7 +23,8 @@ An open-source browser game that turns everyday frustrations into boss fights.
 - React + TypeScript + Vite 工程，依赖由 `package-lock.json` 锁定。
 - 关卡 JSON 运行时校验，错误以「位置 + 原因」的可读列表展示。
 - 纯函数规则引擎（`useReducer` 接入）：离线 → 队列 → 卡纸 Boss 战，完美／普通／失败结局、重开、无效行动与终局保护、耐心归零优先判负。
-- 协议 v0.3（向后兼容）：阶段可以是实时战斗（`fight`），每次被击中扣 1 耐心，打赢后进入 `fight.target`。v0.2 的行动反馈、技巧判定（时机／连打）与阶段强度，以及 v0.1 关卡，都仍可加载。
+- 协议 v0.4（向后兼容）：关卡可带开场剧情（`intro`）。v0.3 起阶段可以是实时战斗（`fight`），每次被击中扣 1 耐心，打赢后进入 `fight.target`。v0.2 的行动反馈、技巧判定（时机／连打）与阶段强度，以及 v0.1 关卡，都仍可加载。
+- 进入游戏（迭代 4）：标题画面（今日副本、Boss 立绘、关卡路线、开始游戏与辅助模式）→ 可跳过的开场剧情（逐字显示、带插画）→ 第一场战斗。游戏窗口后是深夜的房间背景，灯光随局势变化（故障升级、Boss 战警报、通关天亮、失败变灰）。
 - 实时战斗（迭代 2）：纯函数、按时间步进的战斗模拟（`src/game/fight.ts`，带种子的随机数，可完全复现）。三条通道；打印机的招式都有预警：纸张砸向发光的通道（闪避 ←/→）、墨粉喷满全屏（按住格挡 ↓，格挡时不能移动）、弱点只在某条通道短暂露出（走过去按 ↑ 拽出，乱拽会被夹手）、「安装更新」充能会回血（按住 K 重启打断，打断后露出大弱点）。两场热身战各教两个技能，Boss 战分三个形态（盖板 → 拔河 → 最后两厘米）逐步叠加招式。初始耐心 5，零失误才是完美结局。
 - 平衡由脚本玩家验证（Vitest）：反应 350 ms 的谨慎玩家在 20 个种子下全部零失误通关；站着不动、狂按拽出、一直格挡、乱按所有键都会耗尽耐心；反应 900 ms 打不过 Boss。零失误的 Boss 战约 1 分钟战斗时间。
 - Boss 战演出：「BOSS 出现」标题卡、Boss 血条、扣耐心时的反击（纸张飞出、震屏、「−1 耐心」）、每回合递增的损伤、胜利打印纸。
@@ -156,7 +157,8 @@ First runnable version. Level 1, "Printer From Hell" (地狱打印机), is fully
 - React + TypeScript + Vite project, dependencies pinned by `package-lock.json`.
 - Runtime validation of level JSON, with readable errors that give the location and the reason.
 - Pure rule engine wired through `useReducer`: offline → queue → paper-jam boss fight. It handles perfect/normal/failure endings, restart, invalid actions and actions after the game ends. Failure takes precedence when patience hits zero.
-- Protocol v0.3, backward compatible: a phase can be a real-time `fight`. Each hit taken costs 1 patience, and winning follows `fight.target`. v0.2 levels (feedback text, timing/mash skill checks, intensity) and v0.1 levels still load.
+- Protocol v0.4, backward compatible: a level can carry an opening story (`intro`). Since v0.3 a phase can be a real-time `fight`. Each hit taken costs 1 patience, and winning follows `fight.target`. v0.2 levels (feedback text, timing/mash skill checks, intensity) and v0.1 levels still load.
+- Way into the game (Iteration 4): a title screen (today's level, boss portrait, the route through the phases, Start and Assist), then a skippable opening story (typed lines with illustrations), then the first fight. Behind the game window is a room late at night whose lighting follows the game: amber as things go wrong, a red alarm in the boss fight, sunrise after a win, grey after a loss.
 - Real-time fights (Iteration 2): a pure, time-stepped simulation (`src/game/fight.ts`) with a seeded RNG, so a seed plus the inputs replays a fight exactly. There are three lanes, and every printer attack is telegraphed. Each one has one answer:
   - paper lands in the lane that glowed: **dodge** with ←/→;
   - toner fills the screen: hold **block** (↓); you can't move while blocking;

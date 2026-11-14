@@ -18,7 +18,7 @@ export function validPrinter(): LevelDefinition {
   return result.value;
 }
 
-/** A fresh, mutable deep copy of the shipped level (protocol v0.3: real-time fights). */
+/** A fresh, mutable deep copy of the shipped level (protocol v0.4: real-time fights and an intro). */
 export function rawShipped(): any {
   return structuredClone(shippedJson);
 }

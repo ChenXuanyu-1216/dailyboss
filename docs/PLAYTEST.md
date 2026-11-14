@@ -112,3 +112,28 @@ An informal session, reported second-hand by the project owner: the owner and a 
 **据此做出的改动 / Changes made in response**（迭代 3，见 [ROADMAP.md](ROADMAP.md)）：战斗区域加入粒子特效层（墨粉预警时出纸口漏粉、喷射时整片墨粉云和 CMYK 墨点、被喷中时屏幕上的墨渍、格挡时墨粉从护盾上弹开），以及震屏、闪光、纸张飞行与落地碎纸、拽出时的火花和伤害数字、打断时的冲击波、形态横幅与胜利演出，3D 打印机被打中时会后仰。Boss 最终形态的「固件更新」改为 7 秒回 1 血（原 5 秒回 2 血），且不会回到超过该形态起始血量；更新开始后有一段空档用来按住重启；每轮多一次卡纸机会。脚本玩家测试中，完全不会打断更新的玩家现在约 35 秒打完最终形态（原来永远打不过）。是否解决问题，需要试玩 #4 验证。
 
 The arena gains a particle-effects layer (slots leaking toner during the warning, a full toner cloud with CMYK droplets during the spray, ink splats on the screen when hit, toner bouncing off the shield when blocking), plus screen shake, flashes, paper flight and shredding, sparks and damage numbers on pulls, a shockwave on interrupts, stage banners and a victory beat; the 3D printer recoils when hit. The boss's final-form "firmware update" now heals 1 HP over 7 s (was 2 HP over 5 s) and can never heal above that stage's starting HP; a quiet beat after it starts leaves room to hold reset, and each cycle has one more jam. In scripted-player tests a player who never interrupts the update now clears the final form in about 35 s (before: never). Whether this fixes the problem needs playtest #4.
+
+### 试玩 #4 — 2026-11-13 前后（由作者于 2026-11-13 转述）/ around 2026-11-13 (reported by the owner on 2026-11-13)
+
+由项目作者转述的一次非正式试玩：几位朋友试玩了迭代 3 的版本（战斗特效与降低难度后的最终形态）。没有按模板逐人记录，下列未知项如实标为「未记录」。
+
+An informal session, reported second-hand by the project owner: a few friends played the Iteration 3 build (fight effects and the easier final form). It was not recorded per player with the template; unknown fields are marked "not recorded".
+
+- 玩家人数 Players: 几位朋友，具体人数未记录 / a few friends, exact number not recorded
+- 设备 / 浏览器 Device / browser: 未记录 / not recorded
+- 屏幕方向 Orientation: 未记录 / not recorded
+- 显示模式 Display: 未记录 / not recorded
+- 首局用时 First-run completion time: 未记录 / not recorded
+- 首局结局 First-run outcome: 未记录 / not recorded
+- 令人困惑的选项或反馈 Confusing choices or feedback: 未报告 / none reported
+- 是否注意到故障升级 Escalation noticeable?: 未记录 / not recorded
+- 是否想再玩 Wanted to replay?: 未记录；大家都说好玩 / not recorded; everyone said it was fun
+- 观察到的问题 Observed bugs: 未报告 / none reported
+- 其他备注 Other notes:
+  1. 体验有点单一：一进来就直接和打印机开打，没有像样的引导或进入游戏的过程。/ The experience feels a bit one-note: you are thrown straight into a fight with the printer, with no proper onboarding or way into the game.
+  2. 背景很素，看起来像一个廉价的低质量网页游戏。/ The background is very plain, which makes it look like a cheap, low-quality web game.
+  3. 没有再提特效或最终形态难度的问题（迭代 3 的改动）；手机帧率仍未测。/ No one raised the effects or the final-form difficulty again (the Iteration 3 changes); phone frame rate is still untested.
+
+**据此做出的改动 / Changes made in response**（迭代 4，见 [ROADMAP.md](ROADMAP.md)）：打开游戏先看到标题画面（游戏名、今日副本、Boss 立绘、目标与耐心、三个阶段的路线、开始游戏和辅助模式），然后是一段可跳过的开场剧情：四段文字逐字打出，配插画（23:47 的钟、写好的文档、「打印机脱机」、睁开的红眼睛），之后才进入第一场战斗。开场文案写在关卡 JSON 里（协议 v0.4 的 `intro`）。游戏窗口外不再是纯色背景，而是深夜的房间：窗外的城市、停在 23:47 的挂钟、圈出截止日的日历、台灯和咖啡；灯光随局势变化（故障升级时偏琥珀色、Boss 战时整个房间变成警报红、通关后天亮、失败后变灰）。房间本身是静止的，动效集中在游戏窗口里。重开时直接回到第一场战斗，不再经过标题。是否解决问题，需要试玩 #5 验证。
+
+Opening the game now shows a title screen first (game name, today's level, a boss portrait, the objective and patience, the route through the three phases, Start and Assist), then a skippable opening story: four lines typed out one at a time with illustrations (a clock at 23:47, the finished document, "Printer offline", red eyes opening), and only then the first fight. The story text lives in the level JSON (the `intro` field, protocol v0.4). Behind the game window, the flat background is replaced by a room late at night: the city outside the window, a wall clock at 23:47, a calendar with the deadline circled, a desk lamp and a coffee. The lighting follows the game: amber as things go wrong, alarm-red in the boss fight, sunrise after a win, grey after a loss. The room itself is static; the motion stays in the game window. Restarting goes straight back to the first fight, not the title. Whether this fixes the problem needs playtest #5.

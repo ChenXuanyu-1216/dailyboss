@@ -1,0 +1,85 @@
+/* ---------- the room behind the game window (src/ui/Backdrop.tsx) ---------- */
+
+/*
+ * The room is static: no animations and no transitions. Moods change the lighting instantly and
+ * the game window carries all the motion. Animating full-screen layers here (an alarm sweep, a
+ * pulsing wash) cost a third or more of the frame rate in software rendering, so keep any future
+ * motion to small elements and measure it.
+ */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  background: #151a29;
+}
+
+.backdrop__room {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.backdrop__dawn {
+  opacity: 0;
+}
+
+.backdrop__steam {
+  opacity: 0.22;
+}
+
+.backdrop__light {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+/* things start going wrong: amber light from above, the deadline circle glows */
+.backdrop[data-mood='warning'] .backdrop__light {
+  background: radial-gradient(ellipse 80% 55% at 50% -10%, rgb(245 165 36 / 0.22), transparent 70%);
+}
+
+.backdrop[data-mood='warning'] .backdrop__deadline {
+  stroke: #ff6b6b;
+}
+
+/* the boss fight: the room goes alarm-red, the lamp dims, the deadline burns */
+.backdrop[data-mood='critical'] .backdrop__light {
+  background:
+    radial-gradient(ellipse 90% 70% at 50% 0%, rgb(190 16 30 / 0.34), transparent 75%),
+    rgb(110 8 18 / 0.18);
+}
+
+.backdrop[data-mood='critical'] .backdrop__deadline {
+  stroke: #ff6b6b;
+  stroke-width: 7px;
+}
+
+.backdrop[data-mood='critical'] .backdrop__lamp-light,
+.backdrop[data-mood='critical'] .backdrop__bulb {
+  opacity: 0.35;
+}
+
+/* the page printed: the sun comes up */
+.backdrop[data-mood='dawn'] .backdrop__dawn {
+  opacity: 1;
+}
+
+.backdrop[data-mood='dawn'] .backdrop__moon {
+  opacity: 0;
+}
+
+.backdrop[data-mood='dawn'] .backdrop__light {
+  background: radial-gradient(ellipse 60% 70% at 18% 35%, rgb(255 190 120 / 0.28), transparent 70%);
+}
+
+/* out of patience: the room goes grey (an overlay, not a filter: cheaper to draw) */
+.backdrop[data-mood='failure'] .backdrop__light {
+  background: rgb(22 22 26 / 0.62);
+}
+
+.backdrop[data-mood='failure'] .backdrop__steam {
+  opacity: 0;
+}

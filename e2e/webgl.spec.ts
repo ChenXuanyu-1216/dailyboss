@@ -7,7 +7,7 @@ import { ASSIST, MAX_PATIENCE, PHASE_TITLES, expect, requireWebGL, test } from '
 
 test.describe('3D scene @webgl', () => {
   test.beforeEach(async ({ game }) => {
-    await game.page.goto(`./${ASSIST}`);
+    await game.open(ASSIST);
     await requireWebGL(game);
   });
 

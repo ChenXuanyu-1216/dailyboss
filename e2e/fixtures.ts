@@ -194,6 +194,11 @@ export class GamePage {
   readonly fightStart: Locator;
   readonly fightCall: Locator;
   readonly restartButton: Locator;
+  readonly titleScreen: Locator;
+  readonly titleStart: Locator;
+  readonly intro: Locator;
+  readonly introSkip: Locator;
+  readonly introNext: Locator;
 
   constructor(readonly page: Page) {
     this.bossBar = page.getByRole('progressbar', { name: 'Boss 血量' });
@@ -219,11 +224,25 @@ export class GamePage {
     this.fightStart = page.getByRole('button', { name: '开始战斗' });
     this.fightCall = page.getByTestId('fight-call');
     this.restartButton = page.getByRole('button', { name: /重新开始/ });
+    this.titleScreen = page.getByTestId('title-screen');
+    this.titleStart = this.titleScreen.getByRole('button', { name: /开始游戏/ });
+    this.intro = page.getByRole('dialog', { name: '开场剧情' });
+    this.introSkip = this.intro.getByRole('button', { name: /跳过/ });
+    this.introNext = this.intro.locator('.intro__next');
   }
 
-  /** Opens the game (optionally with a query string) and waits until it is interactive. */
+  /** Opens the game (optionally with a query string), goes past the title and the intro, and waits until it is interactive. */
   async open(query = '') {
     await this.page.goto(`./${query}`);
+    await this.enterGame();
+  }
+
+  /** From the title screen: start, skip the opening story, wait for the first fight. */
+  async enterGame() {
+    await this.titleStart.click();
+    await this.introSkip.click();
+    await expect(this.intro).toHaveCount(0);
+    await expect(this.app).toHaveAttribute('data-screen', 'play');
     await expect(this.page.locator('.btn--action, .fight__start').first()).toBeVisible();
   }
 

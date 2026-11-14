@@ -1,5 +1,7 @@
 import {
   INTENSITIES,
+  INTRO_ARTS,
+  MAX_INTRO_BEATS,
   OUTCOMES,
   SKILL_TYPES,
   SUPPORTED_SCHEMA_VERSIONS,
@@ -8,6 +10,9 @@ import {
   type EndingDefinition,
   type FightRef,
   type Intensity,
+  type IntroArt,
+  type IntroBeat,
+  type IntroDefinition,
   type LevelDefinition,
   type Outcome,
   type PhaseDefinition,
@@ -22,11 +27,12 @@ import {
 import { FIGHT_IDS } from './fights';
 
 /**
- * Runtime validation for level JSON (protocol v0.1, v0.2 and v0.3).
+ * Runtime validation for level JSON (protocol v0.1 to v0.4).
  *
  * Guarantees when `ok`:
  * - supported schemaVersion; no unknown fields at any level (newer fields only in newer files)
  * - every phase has either a non-empty `actions` list or (v0.3) a registered `fight`, never both
+ * - (v0.4) an optional `intro` has a tagline and 1–6 beats, each with text and an optional known `art`
  * - non-empty strings, positive integer initialPatience, non-negative integer costs
  * - unique phase IDs, unique action IDs within a phase
  * - initial phase and every phase target (including skill `onFail` and fight targets) exist
@@ -49,6 +55,9 @@ const LEVEL_KEYS = [
   'phases',
   'endings',
 ] as const;
+const LEVEL_KEYS_V04 = [...LEVEL_KEYS, 'intro'] as const;
+const INTRO_KEYS = ['tagline', 'beats'] as const;
+const BEAT_KEYS = ['text', 'art'] as const;
 const PHASE_KEYS_V01 = ['id', 'title', 'description', 'cue', 'actions'] as const;
 const PHASE_KEYS_V02 = [...PHASE_KEYS_V01, 'intensity'] as const;
 const PHASE_KEYS_V03 = [...PHASE_KEYS_V02, 'fight'] as const;
@@ -66,6 +75,11 @@ class Collector {
   add(code: ValidationCode, path: string, message: string): void {
     this.errors.push({ code, path, message });
   }
+}
+
+/** True when `version` is `min` or newer (fields introduced in a version stay valid later). */
+function atLeast(version: SchemaVersion, min: SchemaVersion): boolean {
+  return SUPPORTED_SCHEMA_VERSIONS.indexOf(version) >= SUPPORTED_SCHEMA_VERSIONS.indexOf(min);
 }
 
 function isObject(v: unknown): v is Obj {
@@ -243,6 +257,53 @@ function readFight(c: Collector, raw: unknown, path: string): FightRef | undefin
   return { id, target, ...(feedback !== undefined ? { feedback } : {}) };
 }
 
+function readIntro(c: Collector, raw: unknown, path: string): IntroDefinition | undefined {
+  if (!isObject(raw)) {
+    c.add('invalid-type', path, `应为对象，实际为 ${describe(raw)}。`);
+    return undefined;
+  }
+  checkKeys(c, raw, INTRO_KEYS, path);
+  const tagline = readString(c, raw, 'tagline', path);
+  const rawBeats = readArray(c, raw, 'beats', path);
+  let ok = rawBeats !== undefined;
+  const beatsPath = join(path, 'beats');
+  if (rawBeats && rawBeats.length > MAX_INTRO_BEATS) {
+    c.add('invalid-value', beatsPath, `开场剧情最多 ${MAX_INTRO_BEATS} 段，实际 ${rawBeats.length} 段。`);
+    ok = false;
+  }
+  const beats: IntroBeat[] = [];
+  rawBeats?.forEach((rb, i) => {
+    const p = join(beatsPath, i);
+    if (!isObject(rb)) {
+      c.add('invalid-type', p, `应为对象，实际为 ${describe(rb)}。`);
+      ok = false;
+      return;
+    }
+    checkKeys(c, rb, BEAT_KEYS, p);
+    const text = readString(c, rb, 'text', p);
+    let art: IntroArt | undefined;
+    if ('art' in rb) {
+      if ((INTRO_ARTS as readonly unknown[]).includes(rb.art)) {
+        art = rb.art as IntroArt;
+      } else {
+        c.add(
+          'invalid-value',
+          join(p, 'art'),
+          `不支持的插图 ${JSON.stringify(rb.art) ?? 'undefined'}，只能是 ${INTRO_ARTS.map((a) => `"${a}"`).join('、')}。`,
+        );
+        ok = false;
+      }
+    }
+    if (text === undefined) {
+      ok = false;
+      return;
+    }
+    beats.push({ text, ...(art !== undefined ? { art } : {}) });
+  });
+  if (tagline === undefined || !ok) return undefined;
+  return { tagline, beats };
+}
+
 function readAction(
   c: Collector,
   raw: unknown,
@@ -301,7 +362,7 @@ function readPhase(
   checkKeys(
     c,
     raw,
-    version === '0.1' ? PHASE_KEYS_V01 : version === '0.2' ? PHASE_KEYS_V02 : PHASE_KEYS_V03,
+    atLeast(version, '0.3') ? PHASE_KEYS_V03 : atLeast(version, '0.2') ? PHASE_KEYS_V02 : PHASE_KEYS_V01,
     path,
   );
   const id = readString(c, raw, 'id', path);
@@ -332,7 +393,7 @@ function readPhase(
 
   // v0.3: a fight phase has no actions.
   let fight: FightRef | undefined | null;
-  if (version === '0.3' && 'fight' in raw) {
+  if (atLeast(version, '0.3') && 'fight' in raw) {
     fight = readFight(c, raw.fight, join(path, 'fight')) ?? null;
     if ('actions' in raw) {
       c.add('invalid-value', join(path, 'actions'), '战斗阶段（fight）不能同时包含 actions。');
@@ -527,7 +588,7 @@ export function validateLevel(input: unknown, scenes: SceneCatalog): Result<Leve
   }
   const schemaVersion = version as SchemaVersion;
 
-  checkKeys(c, input, LEVEL_KEYS, '');
+  checkKeys(c, input, atLeast(schemaVersion, '0.4') ? LEVEL_KEYS_V04 : LEVEL_KEYS, '');
   const id = readString(c, input, 'id', '');
   const title = readString(c, input, 'title', '');
   const objective = readString(c, input, 'objective', '');
@@ -570,6 +631,8 @@ export function validateLevel(input: unknown, scenes: SceneCatalog): Result<Leve
   }
 
   const endings = readEndings(c, input, '');
+  const intro =
+    atLeast(schemaVersion, '0.4') && 'intro' in input ? (readIntro(c, input.intro, 'intro') ?? null) : undefined;
 
   if (phasesOk && initialPhaseId !== undefined) checkGraph(c, phases, initialPhaseId);
 
@@ -581,7 +644,8 @@ export function validateLevel(input: unknown, scenes: SceneCatalog): Result<Leve
     sceneId === undefined ||
     initialPatience === undefined ||
     initialPhaseId === undefined ||
-    !endings
+    !endings ||
+    intro === null
   ) {
     return { ok: false, errors: c.errors };
   }
@@ -598,6 +662,7 @@ export function validateLevel(input: unknown, scenes: SceneCatalog): Result<Leve
       initialPhaseId,
       phases,
       endings,
+      ...(intro ? { intro } : {}),
     }),
   };
 }
