@@ -60,7 +60,7 @@ test.describe('opening story', () => {
     for (const [i, text] of BEATS.entries()) {
       await expect(dots.nth(i)).toHaveAttribute('data-state', 'current');
       // The full line is always available to screen readers, even mid-typewriter.
-      await expect(game.intro.locator('.intro__text .visually-hidden')).toHaveText(text);
+      await expect(game.intro.getByRole('status')).toHaveText(text);
       if (i % 2 === 0) {
         // Still typing: the first press finishes the line.
         await expect(typed).not.toHaveText(text);
@@ -121,4 +121,52 @@ test.describe('reduced motion', () => {
     await expect(typed).toHaveText(BEATS[1]!);
     expect(await game.intro.locator('.intro__beat').evaluate((el) => getComputedStyle(el).animationName)).toBe('none');
   });
+});
+
+test('landscape title keeps its brand reachable when content overflows', async ({ game, page }) => {
+  await page.setViewportSize({ width: 844, height: 390 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto('./?render=simple&fx=0');
+  await expect(game.titleStart).toBeVisible();
+  await game.titleScreen.evaluate((el) => { el.scrollTop = 0; });
+  const brand = await game.titleScreen.locator('.title__brand').boundingBox();
+  expect(brand!.y).toBeGreaterThanOrEqual(0);
+  await game.titleStart.scrollIntoViewIfNeeded();
+  await expect(game.titleStart).toBeInViewport();
+  await game.titleStart.click();
+  await expect(game.intro).toBeVisible();
+});
+
+test('story announcements update once per beat while typing stays silent', async ({ game, page }) => {
+  await page.clock.install({ time: CLOCK_START });
+  await page.goto('./?render=simple&fx=0');
+  await page.clock.pauseAt(CLOCK_START + 60_000);
+  await game.titleStart.click();
+  const announcement = game.intro.getByRole('status');
+  await expect(announcement).toHaveAttribute('aria-live', 'polite');
+  await expect(announcement).toHaveAttribute('aria-atomic', 'true');
+  await expect(announcement).toHaveText(BEATS[0]!);
+  const original = await announcement.elementHandle();
+  await page.clock.runFor(90);
+  await expect(announcement).toHaveText(BEATS[0]!);
+  await page.keyboard.press('Enter'); // Finish typing.
+  await expect(announcement).toHaveText(BEATS[0]!);
+  await page.keyboard.press('Enter'); // Advance.
+  await expect(announcement).toHaveText(BEATS[1]!);
+  expect(await announcement.evaluate((el, previous) => el === previous, original)).toBe(true);
+  await expect(game.introNext).toBeFocused();
+});
+
+test('enabling reduced motion reveals the current story beat immediately', async ({ game, page }) => {
+  await page.clock.install({ time: CLOCK_START });
+  await page.goto('./?render=simple&fx=0');
+  await page.clock.pauseAt(CLOCK_START + 60_000);
+  await game.titleStart.click();
+  const typed = game.intro.locator('.intro__text > span[aria-hidden]');
+  await page.clock.runFor(45);
+  await expect(typed).not.toHaveText(BEATS[0]!);
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await expect(typed).toHaveText(BEATS[0]!);
+  await page.keyboard.press('Enter');
+  await expect(typed).toHaveText(BEATS[1]!);
 });

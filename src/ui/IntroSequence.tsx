@@ -82,6 +82,7 @@ export function IntroSequence({ intro, reducedMotion, onDone }: Props) {
   const [index, setIndex] = useState(0);
   const beat = intro.beats[index]!;
   const [typed, setTyped] = useState(reducedMotion ? beat.text.length : 0);
+  const [announcement, setAnnouncement] = useState<{ index: number; text: string } | null>(null);
   const last = index === intro.beats.length - 1;
   const done = typed >= beat.text.length;
   const nextRef = useRef<HTMLButtonElement>(null);
@@ -90,12 +91,21 @@ export function IntroSequence({ intro, reducedMotion, onDone }: Props) {
     nextRef.current?.focus();
   }, []);
 
+  // Populate a persistent live region after mount, once per complete beat.
+  useEffect(() => {
+    setAnnouncement({ index, text: beat.text });
+  }, [beat.text, index]);
+
   // Typewriter.
   useEffect(() => {
+    if (reducedMotion) {
+      setTyped(beat.text.length);
+      return;
+    }
     if (done) return;
     const id = window.setInterval(() => setTyped((n) => Math.min(beat.text.length, n + 1)), CHAR_MS);
     return () => window.clearInterval(id);
-  }, [done, beat.text.length]);
+  }, [done, beat.text.length, reducedMotion]);
 
   const advance = useCallback(() => {
     if (!done) {
@@ -145,10 +155,13 @@ export function IntroSequence({ intro, reducedMotion, onDone }: Props) {
               {beat.text.slice(0, typed)}
               {!done && <span className="intro__caret" />}
             </span>
-            <span className="visually-hidden">{beat.text}</span>
           </p>
         </div>
       </div>
+
+      <p className="visually-hidden" role="status" aria-live="polite" aria-atomic="true">
+        <span key={index}>{announcement?.index === index ? announcement.text : ''}</span>
+      </p>
 
       <div className="intro__foot">
         <ol className="intro__dots" aria-label={UI.introProgress(index + 1, intro.beats.length)}>
