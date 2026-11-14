@@ -41,6 +41,9 @@ React 派发用户事件；界面与场景消费同一份状态。动画完成�
 | src/ui/fightEffects.ts | 战斗粒子特效（墨粉云、墨渍、碎纸、火花、伤害数字）：只读取战斗状态与事件，不影响规则 |
 | src/ui/FightFxLayer.tsx | 特效 canvas 层：自有动画循环、尺寸适配、按绘制耗时自动降低粒子数量；减少动态效果或 `?fx=0` 时不挂载 |
 | src/ui/ResultPanel.tsx | 结局、重开和分享 |
+| src/ui/TitleScreen.tsx | 标题画面：今日关卡、路线、开始游戏与辅助模式 |
+| src/ui/IntroSequence.tsx | 开场剧情（v0.4 `intro`）：逐字显示、插画、继续与跳过 |
+| src/ui/Backdrop.tsx | 游戏窗口后的房间背景（装饰性 SVG），灯光随强度与结局切换 |
 | src/scenes/catalog.ts | sceneId 与支持的 cue 清单（不依赖 React，供校验使用） |
 | src/scenes/registry.ts | sceneId 到本地组件的白名单（懒加载） |
 | src/scenes/SceneHost.tsx | 3D／简化显示切换、错误边界、上下文丢失处理 |
@@ -90,6 +93,14 @@ React 派发用户事件；界面与场景消费同一份状态。动画完成�
 - Phase `fight`：`{ id, target, feedback? }`。`id` 必须是 `src/game/fights.ts` 中已登记的战斗（否则 `unknown-fight`）；`target` 是打赢后的去向（phase 或 resolve），参与引用、可达性与陷阱检查；`feedback` 是打赢后的文案。
 - 战斗阶段不写 `actions`（同时出现时报错）；校验结果中它的 `actions` 为空数组。非战斗阶段仍必须有非空的 `actions`。
 - `fight` 出现在 v0.1／v0.2 文件中按未知字段拒绝。
+
+### v0.4 增量字段（迭代 4）
+
+`schemaVersion` 可为 `"0.4"`。v0.4 文件可以使用全部 v0.3 字段，另外：
+
+- Level `intro`（可选）：`{ tagline, beats }`。`tagline` 是标题画面上的一句话简介；`beats` 是开场剧情，1–6 段，每段 `{ text, art? }`，`art` 取 `clock | document | error | eyes`（通用插画，任何关卡都能用）。
+- 没有 `intro` 的关卡不显示开场剧情，标题画面用 `objective` 代替简介。
+- `intro` 出现在 v0.1–v0.3 文件中按未知字段拒绝。
 
 ## 固定运行接口
 

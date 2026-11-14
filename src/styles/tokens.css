@@ -4,7 +4,7 @@
  */
 :root {
   /* neutrals */
-  --c-bg: #f3f3f0;
+  --c-bg: #151a29; /* the night room behind the window (src/ui/Backdrop.tsx) */
   --c-surface: #ffffff;
   --c-surface-2: #f8f8f6;
   --c-sunken: #ebebe7;

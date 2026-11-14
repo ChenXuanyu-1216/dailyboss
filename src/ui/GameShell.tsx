@@ -6,14 +6,17 @@ import { getFight } from '../game/fights';
 import { useGame } from '../game/useGame';
 import { SceneHost } from '../scenes/SceneHost';
 import { ActionPanel } from './ActionPanel';
+import { Backdrop, backdropMood } from './Backdrop';
 import { BossHud } from './BossHud';
 import { INTENSITY_LABEL, OUTCOME_STATUS, UI } from './copy';
 import { describeLastTurn } from './feedback';
 import { FightArena } from './FightArena';
+import { IntroSequence } from './IntroSequence';
 import { fightSeed, initialAssist, useGameShortcuts, usePrefersReducedMotion } from './hooks';
 import { PatienceMeter } from './PatienceMeter';
 import { ResultPanel } from './ResultPanel';
 import { SkillChallenge } from './SkillChallenge';
+import { TitleScreen } from './TitleScreen';
 
 /** Generic level layout. Everything level-specific comes from `level`. */
 export function GameShell({ level }: { level: LevelDefinition }) {
@@ -23,6 +26,12 @@ export function GameShell({ level }: { level: LevelDefinition }) {
   const consoleRef = useRef<HTMLElement>(null);
   const windowRef = useRef<HTMLDivElement>(null);
   const [assist, setAssist] = useState(initialAssist);
+  /** Title screen, then the opening story (if the level has one), then the game. Restarts skip both. */
+  const [screen, setScreen] = useState<'title' | 'intro' | 'play'>('title');
+  const playing = screen === 'play';
+  const startGame = useCallback(() => setScreen(level.intro ? 'intro' : 'play'), [level.intro]);
+  const endIntro = useCallback(() => setScreen('play'), []);
+  const toggleAssist = useCallback(() => setAssist((v) => !v), []);
   /** Action whose skill check is open, if any. */
   const [challengeId, setChallengeId] = useState<string | null>(null);
   const challengeAction = challengeId ? actions.find((a) => a.id === challengeId) : undefined;
@@ -79,7 +88,12 @@ export function GameShell({ level }: { level: LevelDefinition }) {
   const cancelChallenge = useCallback(() => setChallengeId(null), []);
 
   const actionIds = useMemo(() => actions.map((a) => a.id), [actions]);
-  useGameShortcuts(actionIds, choose, restart, challenge === null);
+  useGameShortcuts(actionIds, choose, restart, challenge === null && playing);
+
+  // Entering the game: hand focus to its first control (the window was inert until now).
+  useEffect(() => {
+    if (playing) windowRef.current?.querySelector<HTMLElement>('.fight__start, .btn--action')?.focus();
+  }, [playing]);
 
   // When the focused button disappears (phase change, restart, closed check), keep focus in the console.
   useEffect(() => {
@@ -130,8 +144,10 @@ export function GameShell({ level }: { level: LevelDefinition }) {
       data-low-patience={state.patience === 1 || undefined}
       data-boss={bossHealth !== null || undefined}
       data-fight={(fight && !state.outcome) || undefined}
+      data-screen={screen}
     >
-      <div className="window" ref={windowRef}>
+      <Backdrop mood={backdropMood(intensity, state.outcome)} />
+      <div className="window" ref={windowRef} inert={!playing}>
         <header className="titlebar">
           <span className="titlebar__icon" aria-hidden="true" />
           <h1 className="titlebar__title">
@@ -293,7 +309,7 @@ export function GameShell({ level }: { level: LevelDefinition }) {
                 type="button"
                 className="btn btn--ghost btn--small assist-toggle"
                 aria-pressed={assist}
-                onClick={() => setAssist((v) => !v)}
+                onClick={toggleAssist}
                 title={UI.assistHint}
               >
                 {UI.assist}
@@ -302,6 +318,13 @@ export function GameShell({ level }: { level: LevelDefinition }) {
           </main>
         </div>
       </div>
+
+      {screen === 'title' && (
+        <TitleScreen level={level} assist={assist} onToggleAssist={toggleAssist} onStart={startGame} />
+      )}
+      {screen === 'intro' && level.intro && (
+        <IntroSequence intro={level.intro} reducedMotion={reducedMotion} onDone={endIntro} />
+      )}
     </div>
   );
 }

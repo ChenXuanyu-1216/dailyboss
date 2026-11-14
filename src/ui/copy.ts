@@ -42,6 +42,17 @@ export const UI = {
   logSkillFail: '✕ 判定失手',
   assist: '辅助模式',
   assistHint: '技巧判定自动成功；实时战斗放慢到 65% 速度',
+  // Title screen and opening story
+  titleSubtitle: '人生副本 · 把日常故障打成 Boss 战',
+  titleToday: '今日副本',
+  titleStart: '开始游戏',
+  titleRoute: '关卡路线',
+  titleControls: '支持键盘与触屏 · 战斗中按 Esc 暂停 · R 重开',
+  introLabel: '开场剧情',
+  introSkip: '跳过',
+  introNext: '继续',
+  introBegin: '进入战斗',
+  introProgress: (n: number, total: number) => `第 ${n} 段，共 ${total} 段`,
   // Real-time fights
   fightLanes: ['左路', '中路', '右路'],
   fightPosition: (lane: string) => `你在${lane}。`,

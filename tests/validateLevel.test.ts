@@ -12,7 +12,8 @@ describe('shipped content', () => {
     if (result.ok) {
       expect(result.value.title).toBe('地狱打印机');
       expect(result.value.phases.map((p) => p.id)).toEqual(['offline', 'queue', 'jam']);
-      expect(result.value.schemaVersion).toBe('0.3');
+      expect(result.value.schemaVersion).toBe('0.4');
+      expect(result.value.intro?.beats.length).toBeGreaterThan(0);
       // Every phase of the shipped level is a real-time fight: no menu to click through.
       expect(result.value.phases.map((p) => p.fight?.id)).toEqual(['printer-offline', 'printer-queue', 'printer-boss']);
       expect(result.value.phases.every((p) => p.actions.length === 0)).toBe(true);
@@ -449,5 +450,63 @@ describe('protocol v0.3 fights', () => {
     raw.schemaVersion = '0.3';
     raw.phases[4] = fightPhase('jam-final', { type: 'resolve' });
     expect(codesOf(raw)).toEqual([]);
+  });
+});
+
+describe('protocol v0.4 intro', () => {
+  it('accepts an intro and returns it frozen', () => {
+    const result = validateLevel(rawShipped(), SCENE_CATALOG);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.intro?.tagline).toEqual(expect.any(String));
+    expect(result.value.intro?.beats[0]).toEqual({ art: 'clock', text: expect.stringContaining('23:47') });
+    expect(Object.isFrozen(result.value.intro!.beats[0])).toBe(true);
+  });
+
+  it('is optional: a v0.4 level without an intro is valid and has none', () => {
+    const raw = rawShipped();
+    delete raw.intro;
+    const result = validateLevel(raw, SCENE_CATALOG);
+    expect(result.ok && result.value.intro).toBe(undefined);
+  });
+
+  it('rejects `intro` in a v0.3 file, and v0.3 fights still load as v0.3', () => {
+    const raw = rawShipped();
+    raw.schemaVersion = '0.3';
+    expect(errorsOf(raw).find((e) => e.code === 'unknown-field')!.path).toBe('intro');
+    delete raw.intro;
+    expect(codesOf(raw)).toEqual([]);
+  });
+
+  it('allows every earlier field in v0.4: actions, skills and intensity', () => {
+    const raw = rawPrinter();
+    raw.schemaVersion = '0.4';
+    expect(codesOf(raw)).toEqual([]);
+  });
+
+  it('validates the intro shape', () => {
+    const raw = rawShipped();
+    raw.intro.tagline = '';
+    raw.intro.music = 'boss.mp3';
+    raw.intro.beats[0].art = 'explosion';
+    raw.intro.beats[1] = 'just text';
+    delete raw.intro.beats[2].text;
+    const errors = errorsOf(raw);
+    const has = (path: string, code: string) => errors.some((e) => e.path === path && e.code === code);
+    expect(has('intro.tagline', 'invalid-value')).toBe(true);
+    expect(has('intro.music', 'unknown-field')).toBe(true);
+    expect(has('intro.beats[0].art', 'invalid-value')).toBe(true);
+    expect(has('intro.beats[1]', 'invalid-type')).toBe(true);
+    expect(has('intro.beats[2].text', 'missing-field')).toBe(true);
+  });
+
+  it('needs at least one beat and at most six', () => {
+    const empty = rawShipped();
+    empty.intro.beats = [];
+    expect(errorsOf(empty).some((e) => e.path === 'intro.beats' && e.code === 'invalid-value')).toBe(true);
+
+    const long = rawShipped();
+    long.intro.beats = Array.from({ length: 7 }, (_, i) => ({ text: `beat ${i}` }));
+    expect(errorsOf(long).find((e) => e.path === 'intro.beats')!.message).toContain('6');
   });
 });

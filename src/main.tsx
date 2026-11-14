@@ -6,6 +6,8 @@ import './styles/base.css';
 import './styles/shell.css';
 import './styles/fallback.css';
 import './styles/fight.css';
+import './styles/backdrop.css';
+import './styles/screens.css';
 
 const root = document.getElementById('root');
 if (!root) throw new Error('Missing #root element');
