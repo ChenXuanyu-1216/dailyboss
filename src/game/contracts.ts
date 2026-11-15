@@ -170,7 +170,8 @@ export type GameEvent =
   | { type: 'HIT'; attack: AttackKind }
   /** v0.3: the player won the current fight phase. */
   | { type: 'FIGHT_WON' }
-  | { type: 'RESTART' };
+  /** `phaseId`: start the new run in that phase instead (boss practice). */
+  | { type: 'RESTART'; phaseId?: string };
 
 /** One accepted action. Extension to the documented GameState to support feedback and logs. */
 export interface TurnRecord {

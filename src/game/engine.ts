@@ -25,16 +25,21 @@ import { ATTACK_KINDS, type AttackKind } from './fight';
  * 4. Patience 0 → failure, taking precedence over a resolve target.
  * 5. Otherwise a phase target moves to that phase; resolve ends in success.
  * 6. Success with zero total cost → perfect, else normal.
- * 7. RESTART restores the initial state.
+ * 7. RESTART restores the initial state (optionally starting in another phase: boss practice).
  *
  * Fight phases (v0.3) have no actions. The real-time fight runs in the presentation layer and
  * reports only two things: HIT (costs FIGHT_HIT_COST patience, step 3–4 apply) and FIGHT_WON
  * (free, follows `fight.target`, steps 5–6 apply). Both are ignored outside a fight phase.
  */
 
-export function createInitialState(level: LevelDefinition): GameState {
+/**
+ * `startPhaseId` (iteration 5, boss practice) starts the run in another phase of the level; an
+ * unknown ID falls back to the level's initial phase.
+ */
+export function createInitialState(level: LevelDefinition, startPhaseId?: string): GameState {
+  const phaseId = startPhaseId !== undefined && findPhase(level, startPhaseId) ? startPhaseId : level.initialPhaseId;
   return {
-    phaseId: level.initialPhaseId,
+    phaseId,
     patience: level.initialPatience,
     patienceSpent: 0,
     history: [],
@@ -54,7 +59,7 @@ export function findAction(phase: PhaseDefinition, actionId: string): ActionDefi
 export function transition(level: LevelDefinition, state: GameState, event: GameEvent): GameState {
   switch (event.type) {
     case 'RESTART':
-      return createInitialState(level);
+      return createInitialState(level, event.phaseId);
     case 'ACT':
       return act(level, state, event.actionId, event.skill);
     case 'HIT':

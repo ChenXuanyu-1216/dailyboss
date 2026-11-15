@@ -15,6 +15,7 @@ import {
   channelProgress,
   createFight,
   fightHealth,
+  gripProgress,
   stepFight,
   type AbilityId,
   type AttackKind,
@@ -23,6 +24,7 @@ import {
   type FightEvent,
   type FightState,
 } from '../game/fight';
+import { sfx, soundsFor } from './audio';
 import { UI } from './copy';
 import { FightFx } from './fightEffects';
 import { FightFxLayer } from './FightFxLayer';
@@ -46,6 +48,8 @@ function shakeFor(e: FightEvent): number {
       return e.stun ? 9 : 5;
     case 'interrupt':
       return 6;
+    case 'perfect':
+      return e.opened ? 4 : 0;
     case 'stage':
       return 10;
     case 'won':
@@ -61,9 +65,11 @@ function flashFor(e: FightEvent): string | null {
     case 'hit':
       return e.attack === 'toner' ? 'ink' : 'hit';
     case 'damage':
-      return e.stun ? 'stun' : 'damage';
+      return e.stun ? 'stun' : e.heavy ? 'heavy' : 'damage';
     case 'interrupt':
       return 'stun';
+    case 'perfect':
+      return e.opened ? 'perfect' : null;
     case 'stage':
     case 'won':
       return e.type;
@@ -95,10 +101,15 @@ interface Props {
   onHit: (attack: AttackKind) => void;
   onWon: () => void;
   onHealth: (health: number) => void;
+  /** Every frame's events and the fight time it covered (run statistics, sound). */
+  onFrame?: (events: readonly FightEvent[], dtMs: number) => void;
 }
 
 const ABILITY_LABEL: Record<AbilityId, string> = { dodge: '闪避', block: '格挡', pull: '拽出', reset: '重启' };
 const ABILITY_KEYS: Record<AbilityId, string> = { dodge: '← →', block: '↓ 按住', pull: '↑', reset: 'K 按住' };
+/** The boss's advanced techniques, in one briefing row so the kit still fits the arena. */
+const MASTERY_NAME = '极限防御 · 重拽';
+const MASTERY_HELP = '最后一刻才闪开或格挡，破绽提前露在脚下；按住 ↑ 0.7 秒重拽，伤害 +1，没拽完就缩回会夹手。';
 const ABILITY_HELP: Record<AbilityId, string> = {
   dodge: '离开发光的通道，纸会砸在那里。',
   block: '墨粉喷满全屏，躲不开，只能按住格挡（格挡时不能移动）。',
@@ -106,7 +117,7 @@ const ABILITY_HELP: Record<AbilityId, string> = {
   reset: '按住约 0.7 秒，打断充能；被打断的打印机会露出大弱点。',
 };
 
-type Held = 'block' | 'reset';
+type Held = 'block' | 'reset' | 'pull';
 
 function tacticalCue(before: FightState, after: FightState, fight: FightDefinition): string {
   const cues: string[] = [];
@@ -127,7 +138,11 @@ function tacticalCue(before: FightState, after: FightState, fight: FightDefiniti
   if (before.toner && !after.toner) cues.push(UI.fightTonerEnd);
   if (after.charge && after.charge.from !== before.charge?.from) cues.push(UI.fightChargeCue(fight.copy.charge));
   if (after.exposure && after.exposure.from !== before.exposure?.from) {
-    cues.push(UI.fightWeakCue(UI.fightLanes[after.exposure.lane]!, fight.copy.weakPoint));
+    cues.push(
+      after.exposure.counter
+        ? UI.fightCounterCue(UI.fightLanes[after.exposure.lane]!)
+        : UI.fightWeakCue(UI.fightLanes[after.exposure.lane]!, fight.copy.weakPoint),
+    );
   }
   if (cues.length || before.lane !== after.lane) cues.push(UI.fightPosition(UI.fightLanes[after.lane]!));
   return cues.join(' ');
@@ -145,7 +160,7 @@ function keyAction(e: KeyboardEvent): { command?: FightCommand; held?: Held } | 
     case 'ArrowUp':
     case 'KeyW':
     case 'KeyJ':
-      return { command: 'pull' };
+      return { command: 'pull', held: 'pull' };
     case 'ArrowDown':
     case 'KeyS':
       return { held: 'block' };
@@ -172,7 +187,11 @@ function callFor(e: FightEvent, fight: FightDefinition): string | null {
     case 'block':
       return c.block;
     case 'damage':
-      return e.stun ? c.stunDamage : c.damage;
+      return e.heavy ? c.heavyDamage : e.stun ? c.stunDamage : e.counter ? c.counterDamage : c.damage;
+    case 'grip':
+      return c.grip;
+    case 'perfect':
+      return !e.opened ? c.perfectNoOpening : e.defense === 'dodge' ? c.perfectDodge : c.perfectBlock;
     case 'whiff':
       return c.whiff;
     case 'interrupt':
@@ -191,13 +210,13 @@ function callFor(e: FightEvent, fight: FightDefinition): string | null {
 }
 
 /** Calls worth announcing to screen readers (not every dodge). */
-const ANNOUNCED = new Set<FightEvent['type']>(['hit', 'damage', 'interrupt', 'heal', 'stage', 'won', 'whiff']);
+const ANNOUNCED = new Set<FightEvent['type']>(['hit', 'damage', 'interrupt', 'heal', 'stage', 'won', 'whiff', 'perfect']);
 
 /**
  * One real-time fight. Owns the clock (performance.now() deltas, scaled in assist mode) and the
  * input devices; the rules live in src/game/fight.ts. Reports hits, the win and HP changes up.
  */
-export function FightArena({ fight, seed, assist, isBoss, onHit, onWon, onHealth }: Props) {
+export function FightArena({ fight, seed, assist, isBoss, onHit, onWon, onHealth, onFrame }: Props) {
   const [view, setView] = useState<FightState>(() => createFight(fight, seed));
   const [started, setStarted] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -220,7 +239,7 @@ export function FightArena({ fight, seed, assist, isBoss, onHit, onWon, onHealth
 
   const stateRef = useRef(view);
   const commands = useRef<FightCommand[]>([]);
-  const held = useRef<Record<Held, Set<string>>>({ block: new Set(), reset: new Set() });
+  const held = useRef<Record<Held, Set<string>>>({ block: new Set(), reset: new Set(), pull: new Set() });
   const lastFrame = useRef<number | null>(null);
   const reported = useRef(false);
   const rootRef = useRef<HTMLElement>(null);
@@ -228,14 +247,15 @@ export function FightArena({ fight, seed, assist, isBoss, onHit, onWon, onHealth
   const resumeRef = useRef<HTMLButtonElement>(null);
   const assistRef = useRef(assist);
   assistRef.current = assist;
-  const callbacks = useRef({ onHit, onWon, onHealth });
-  callbacks.current = { onHit, onWon, onHealth };
+  const callbacks = useRef({ onHit, onWon, onHealth, onFrame });
+  callbacks.current = { onHit, onWon, onHealth, onFrame };
 
   const running = started && !paused && !view.won;
 
   const releaseAll = useCallback(() => {
     held.current.block.clear();
     held.current.reset.clear();
+    held.current.pull.clear();
     commands.current = [];
   }, []);
 
@@ -264,6 +284,13 @@ export function FightArena({ fight, seed, assist, isBoss, onHit, onWon, onHealth
     if (paused) resumeRef.current?.focus();
   }, [paused]);
 
+  // The printer's hum runs with the fight; pausing, winning or leaving silences it.
+  useEffect(() => {
+    if (!running) return;
+    sfx.setHum(isBoss ? 2 : 1);
+    return () => sfx.setHum(0);
+  }, [running, isBoss]);
+
   // The frame loop.
   useEffect(() => {
     if (!running) return;
@@ -277,11 +304,13 @@ export function FightArena({ fight, seed, assist, isBoss, onHit, onWon, onHealth
           commands: commands.current,
           block: held.current.block.size > 0,
           reset: held.current.reset.size > 0,
+          pull: held.current.pull.size > 0,
         };
         commands.current = [];
         const before = stateRef.current;
         const { state, events } = stepFight(fight, before, input, dt);
         stateRef.current = state;
+        sfx.playAll(soundsFor(before, state, events));
         const motion = !reducedRef.current;
         if (motion) {
           if (fxOnRef.current) fx.sync(before, state, events);
@@ -315,6 +344,7 @@ export function FightArena({ fight, seed, assist, isBoss, onHit, onWon, onHealth
             });
           }
         });
+        callbacks.current.onFrame?.(events, state.t - before.t);
         if (state.hp !== before.hp) callbacks.current.onHealth(fightHealth(fight, state));
         for (const e of events) {
           if (e.type === 'hit') callbacks.current.onHit(e.attack);
@@ -379,14 +409,21 @@ export function FightArena({ fight, seed, assist, isBoss, onHit, onWon, onHealth
       if (e.detail === 0 && running) commands.current.push(command);
     },
   });
-  const hold = (which: Held) => {
+  const hold = (which: Held, command?: FightCommand) => {
     const release = (e: PointerEvent<HTMLButtonElement>) => held.current[which].delete(`ptr:${e.pointerId}`);
     return {
       onPointerDown: (e: PointerEvent<HTMLButtonElement>) => {
         e.preventDefault();
         e.currentTarget.setPointerCapture?.(e.pointerId);
-        if (running) held.current[which].add(`ptr:${e.pointerId}`);
+        if (!running) return;
+        held.current[which].add(`ptr:${e.pointerId}`);
+        if (command) commands.current.push(command);
       },
+      ...(command && {
+        onClick: (e: MouseEvent<HTMLButtonElement>) => {
+          if (e.detail === 0 && running) commands.current.push(command);
+        },
+      }),
       onPointerUp: release,
       onPointerCancel: release,
       onLostPointerCapture: release,
@@ -397,6 +434,7 @@ export function FightArena({ fight, seed, assist, isBoss, onHit, onWon, onHealth
   const t = s.t;
   const stage = fight.stages[s.stage];
   const channel = channelProgress(s);
+  const grip = gripProgress(s);
   const toner = s.toner ? (t >= s.toner.activeAt ? 'active' : 'warn') : undefined;
   const warnLanes = new Set(s.papers.filter((p) => t < p.launchAt).map((p) => p.lane));
   const dangerLanes = new Set(s.papers.map((p) => p.lane));
@@ -406,6 +444,8 @@ export function FightArena({ fight, seed, assist, isBoss, onHit, onWon, onHealth
   const bannerOn = t < s.stageBannerUntil;
   const callFresh = call !== null && t - call.at < CALL_MS;
   const abilities = (['dodge', 'block', 'pull', 'reset'] as const).filter((a) => canUse(fight, a));
+  const fresh = abilities.filter((a) => fight.newAbilities.includes(a));
+  const known = abilities.filter((a) => !fight.newAbilities.includes(a));
 
   return (
     <section
@@ -418,6 +458,7 @@ export function FightArena({ fight, seed, assist, isBoss, onHit, onWon, onHealth
       data-player-lane={s.lane}
       data-blocking={s.blocking || undefined}
       data-channeling={channel !== null || undefined}
+      data-gripping={grip !== null || undefined}
       data-toner={toner}
       data-exposed-lane={s.exposure?.lane}
       data-charging={s.charge ? 'true' : undefined}
@@ -493,12 +534,12 @@ export function FightArena({ fight, seed, assist, isBoss, onHit, onWon, onHealth
                 className="fight__lane"
                 data-lane={lane}
                 data-warn={warnLanes.has(lane) || undefined}
-                data-weak={weak ? (weak.stun ? 'stun' : 'jam') : undefined}
+                data-weak={weak ? (weak.stun ? 'stun' : weak.counter ? 'counter' : 'jam') : undefined}
               >
                 <span className="fight__slot" aria-hidden="true" />
                 {weak && (
                   <span className="fight__weak" data-testid="weak-point">
-                    <span className="fight__weak-label">{fight.copy.weakPoint}</span>
+                    <span className="fight__weak-label">{weak.counter ? UI.fightCounter : fight.copy.weakPoint}</span>
                     <span
                       className="fight__weak-timer"
                       style={{ transform: `scaleX(${Math.max(0, (weak.until - t) / (weak.until - weak.from))})` }}
@@ -546,6 +587,14 @@ export function FightArena({ fight, seed, assist, isBoss, onHit, onWon, onHealth
             {channel !== null && (
               <span className="fight__channel" style={{ '--channel': channel } as CSSProperties} />
             )}
+            {grip !== null && (
+              <span
+                className="fight__grip"
+                data-full={grip >= 1 || undefined}
+                style={{ '--grip': grip } as CSSProperties}
+                aria-hidden="true"
+              />
+            )}
           </div>
         </div>
 
@@ -586,16 +635,33 @@ export function FightArena({ fight, seed, assist, isBoss, onHit, onWon, onHealth
           <div className="fight__overlay fight__brief">
             <p className="fight__briefing">{fight.copy.briefing}</p>
             <ul className="fight__kit">
-              {abilities.map((a) => (
-                <li key={a} className="fight__kit-item" data-new={fight.newAbilities.includes(a) || undefined}>
+              {/* Abilities learned in an earlier fight: one line of key reminders. */}
+              {known.length > 0 && (
+                <li className="fight__kit-known" data-testid="kit-known">
+                  {known.map((a) => (
+                    <span key={a}>
+                      <kbd className="fight__kbd">{ABILITY_KEYS[a]}</kbd> {ABILITY_LABEL[a]}
+                    </span>
+                  ))}
+                </li>
+              )}
+              {fresh.map((a) => (
+                <li key={a} className="fight__kit-item" data-new>
                   <kbd className="fight__kbd">{ABILITY_KEYS[a]}</kbd>
                   <span className="fight__kit-name">
                     {ABILITY_LABEL[a]}
-                    {fight.newAbilities.includes(a) && <span className="fight__new">{UI.fightNewAbility}</span>}
+                    <span className="fight__new">{UI.fightNewAbility}</span>
                   </span>
                   <span className="fight__kit-help">{ABILITY_HELP[a]}</span>
                 </li>
               ))}
+              {(fight.counter || fight.heavyPull) && (
+                <li className="fight__kit-item" data-new data-testid="kit-mastery">
+                  <kbd className="fight__kbd">{UI.fightAdvanced}</kbd>
+                  <span className="fight__kit-name">{MASTERY_NAME}</span>
+                  <span className="fight__kit-help">{MASTERY_HELP}</span>
+                </li>
+              )}
             </ul>
             <button ref={startRef} type="button" className="btn btn--primary fight__start" onClick={start}>
               {UI.fightStart}
@@ -646,13 +712,16 @@ export function FightArena({ fight, seed, assist, isBoss, onHit, onWon, onHealth
             className="btn fight__ctl fight__ctl--pull"
             data-ability="pull"
             data-ready={pullReady || undefined}
+            data-active={grip !== null || undefined}
             aria-keyshortcuts="ArrowUp"
-            {...tap('pull')}
+            {...(fight.heavyPull ? hold('pull', 'pull') : tap('pull'))}
           >
             <span className="fight__ctl-icon" aria-hidden="true">
               ▲
             </span>
-            <span className="fight__ctl-name">{pullReady ? '拽出' : UI.fightLocked}</span>
+            <span className="fight__ctl-name">
+              {grip !== null ? UI.fightGripping : pullReady ? '拽出' : UI.fightLocked}
+            </span>
           </button>
         )}
         {canUse(fight, 'reset') && (

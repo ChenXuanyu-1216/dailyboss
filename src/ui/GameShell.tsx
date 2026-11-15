@@ -1,20 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { LevelDefinition, SceneProps, SkillResult } from '../game/contracts';
 import { findAction, findPhase } from '../game/engine';
-import type { AttackKind } from '../game/fight';
+import type { AttackKind, FightEvent } from '../game/fight';
 import { getFight } from '../game/fights';
 import { useGame } from '../game/useGame';
 import { SceneHost } from '../scenes/SceneHost';
 import { ActionPanel } from './ActionPanel';
-import { Backdrop, backdropMood } from './Backdrop';
+import { useSoundOn } from './audio';
+import { Backdrop, backdropMood, backdropMotion } from './Backdrop';
 import { BossHud } from './BossHud';
 import { INTENSITY_LABEL, OUTCOME_STATUS, UI } from './copy';
 import { describeLastTurn } from './feedback';
 import { FightArena } from './FightArena';
 import { IntroSequence } from './IntroSequence';
-import { fightSeed, initialAssist, useGameShortcuts, usePrefersReducedMotion } from './hooks';
+import { fightSeed, initialAssist, practiceUnlocked, useGameShortcuts, usePrefersReducedMotion } from './hooks';
 import { PatienceMeter } from './PatienceMeter';
-import { ResultPanel } from './ResultPanel';
+import { ResultPanel, type RunSummary } from './ResultPanel';
+import { loadRecords, markReachedBoss, recordWin, type RunMode } from './records';
+import { addFrame, emptyStats, improvementTip, totalHits } from './runStats';
 import { SkillChallenge } from './SkillChallenge';
 import { TitleScreen } from './TitleScreen';
 
@@ -23,6 +26,8 @@ export function GameShell({ level }: { level: LevelDefinition }) {
   const game = useGame(level);
   const { state, phase, actions, intensity, progress, lastTurn, act, hit, winFight, restart: restartGame } = game;
   const reducedMotion = usePrefersReducedMotion();
+  const [soundOn, toggleSound] = useSoundOn();
+  const bgMotion = useMemo(() => backdropMotion(reducedMotion), [reducedMotion]);
   const consoleRef = useRef<HTMLElement>(null);
   const windowRef = useRef<HTMLDivElement>(null);
   const [assist, setAssist] = useState(initialAssist);
@@ -39,6 +44,20 @@ export function GameShell({ level }: { level: LevelDefinition }) {
 
   /** Bumped on every restart so a fight in the initial phase starts over too. */
   const [run, setRun] = useState(0);
+  /** Full run, or boss practice (starts in the boss phase). */
+  const [mode, setMode] = useState<RunMode>('full');
+  const bossPhaseId = useMemo(
+    () => level.phases.find((p) => p.fight && p.intensity === 'critical')?.id ?? null,
+    [level],
+  );
+  const [records, setRecords] = useState(() => loadRecords(level.id));
+  const canPractice = bossPhaseId !== null && (records.reachedBoss || practiceUnlocked());
+  /** Run statistics, tallied from the fights' events (presentation only). */
+  const stats = useRef(emptyStats());
+  /** Assist was on at some point in this run. */
+  const assistUsed = useRef(assist);
+  if (assist) assistUsed.current = true;
+  const [summary, setSummary] = useState<RunSummary | null>(null);
   const fight = phase.fight ? getFight(phase.fight.id) : undefined;
   /** Live HP of the current fight, reported by the arena (presentation only). */
   const [fightHp, setFightHp] = useState<{ key: string; health: number } | null>(null);
@@ -54,14 +73,72 @@ export function GameShell({ level }: { level: LevelDefinition }) {
           ? fightHp.health
           : 1;
 
-  const restart = useCallback(() => {
-    setChallengeId(null);
-    setRun((n) => n + 1);
-    restartGame();
-  }, [restartGame]);
+  const startRun = useCallback(
+    (next: RunMode) => {
+      setChallengeId(null);
+      setSummary(null);
+      stats.current = emptyStats();
+      assistUsed.current = assist;
+      setMode(next);
+      setRun((n) => n + 1);
+      restartGame(next === 'boss' && bossPhaseId !== null ? bossPhaseId : undefined);
+    },
+    [restartGame, bossPhaseId, assist],
+  );
+  const restart = useCallback(() => startRun(mode), [startRun, mode]);
+  const switchMode = useCallback(() => startRun(mode === 'boss' ? 'full' : 'boss'), [startRun, mode]);
+  const startPractice = useCallback(() => {
+    setScreen('play');
+    startRun('boss');
+  }, [startRun]);
+
+  // Reaching the boss unlocks practice on the title screen.
+  useEffect(() => {
+    if (bossPhaseId !== null && state.phaseId === bossPhaseId && mode === 'full') {
+      setRecords((r) => markReachedBoss(level.id, r));
+    }
+  }, [state.phaseId, bossPhaseId, mode, level.id]);
+
+  // The run ended: sum it up, record a win.
+  const hasFights = level.phases.some((p) => p.fight);
+  useEffect(() => {
+    if (!state.outcome || !hasFights) return;
+    const st = stats.current;
+    const hits = totalHits(st);
+    const assisted = assistUsed.current;
+    const won = state.outcome !== 'failure';
+    let previous = records[mode];
+    let newTime = false;
+    let newHits = false;
+    if (won && !assisted) {
+      const r = recordWin(level.id, records, mode, st.fightMs, hits);
+      previous = r.previous;
+      newTime = r.newTime;
+      newHits = r.newHits;
+      setRecords(r.records);
+    }
+    const mastery = bossPhaseId !== null && Boolean(getFight(findPhase(level, bossPhaseId)?.fight?.id ?? '')?.counter);
+    setSummary({
+      mode,
+      timeMs: st.fightMs,
+      hits,
+      previous,
+      newTime,
+      newHits,
+      assist: assisted,
+      perfects: st.perfects,
+      heavyPulls: st.heavyPulls,
+      interrupts: st.interrupts,
+      tip: improvementTip(st, state.outcome, mastery),
+    });
+    // Only when the outcome appears; records/mode are read as they were at that moment.
+  }, [state.outcome]);
 
   const onFightHit = useCallback((attack: AttackKind) => hit(attack), [hit]);
   const onFightHealth = useCallback((health: number) => setFightHp({ key: fightKey, health }), [fightKey]);
+  const onFightFrame = useCallback((events: readonly FightEvent[], dtMs: number) => {
+    addFrame(stats.current, events, dtMs);
+  }, []);
   const onFightWon = useCallback(() => {
     setFightHp(null);
     winFight();
@@ -145,8 +222,9 @@ export function GameShell({ level }: { level: LevelDefinition }) {
       data-boss={bossHealth !== null || undefined}
       data-fight={(fight && !state.outcome) || undefined}
       data-screen={screen}
+      data-mode={mode}
     >
-      <Backdrop mood={backdropMood(intensity, state.outcome)} />
+      <Backdrop mood={backdropMood(intensity, state.outcome)} motion={bgMotion} />
       <div className="window" ref={windowRef} inert={!playing}>
         <header className="titlebar">
           <span className="titlebar__icon" aria-hidden="true" />
@@ -160,6 +238,15 @@ export function GameShell({ level }: { level: LevelDefinition }) {
           <span className="titlebar__tag" data-intensity={intensity}>
             {state.outcome ? '已结束' : INTENSITY_LABEL[intensity]}
           </span>
+          <button
+            type="button"
+            className="btn btn--ghost btn--small titlebar__sound"
+            aria-pressed={soundOn}
+            onClick={toggleSound}
+            data-testid="sound-toggle"
+          >
+            {soundOn ? UI.soundOn : UI.soundOff}
+          </button>
           <button
             type="button"
             className="btn btn--ghost btn--small titlebar__restart"
@@ -225,13 +312,10 @@ export function GameShell({ level }: { level: LevelDefinition }) {
                 ending={level.endings[state.outcome]}
                 patienceSpent={state.patienceSpent}
                 steps={state.turns.length}
-                hits={
-                  level.phases.some((p) => p.fight)
-                    ? state.turns.filter((t) => t.fight === 'hit').length
-                    : undefined
-                }
                 printed={level.objective}
+                run={summary ?? undefined}
                 onRestart={restart}
+                onSwitchMode={bossPhaseId !== null ? switchMode : undefined}
               />
             ) : fight ? (
               <FightArena
@@ -243,6 +327,7 @@ export function GameShell({ level }: { level: LevelDefinition }) {
                 onHit={onFightHit}
                 onWon={onFightWon}
                 onHealth={onFightHealth}
+                onFrame={onFightFrame}
               />
             ) : challenge ? (
               <SkillChallenge
@@ -320,7 +405,16 @@ export function GameShell({ level }: { level: LevelDefinition }) {
       </div>
 
       {screen === 'title' && (
-        <TitleScreen level={level} assist={assist} onToggleAssist={toggleAssist} onStart={startGame} />
+        <TitleScreen
+          level={level}
+          assist={assist}
+          onToggleAssist={toggleAssist}
+          onStart={startGame}
+          onPractice={canPractice ? startPractice : undefined}
+          bestMs={records.full.timeMs}
+          soundOn={soundOn}
+          onToggleSound={toggleSound}
+        />
       )}
       {screen === 'intro' && level.intro && (
         <IntroSequence intro={level.intro} reducedMotion={reducedMotion} onDone={endIntro} />

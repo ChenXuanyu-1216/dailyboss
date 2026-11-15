@@ -1,12 +1,43 @@
-import { memo } from 'react';
+import { memo, type CSSProperties } from 'react';
 import type { Intensity, Outcome } from '../game/contracts';
+import { probeWebGL } from '../scenes/webgl';
 
 /**
  * The room the game is played in: a desk late at night, drawn as one inline SVG behind the game
- * window. Decorative only (aria-hidden) and static (see src/styles/backdrop.css for why). Its
- * lighting follows the game: calm night, amber when things go wrong, alarm-red in the boss fight,
- * dawn after a win, and grey after a loss. Moods are pure CSS, so restyling needs no code.
+ * window. Decorative only (aria-hidden). Its lighting follows the game: calm night, amber when
+ * things go wrong, alarm-red in the boss fight, dawn after a win, and grey after a loss. Moods are
+ * pure CSS, so restyling needs no code.
+ *
+ * The room picture itself never animates (any change inside it repaints the whole full-screen
+ * SVG). What moves lives in small separate layers on top, see BackdropMotion and backdrop.css.
  */
+
+/**
+ * How much the room moves. `lite`: small layers only (the ticking clock, steam, city windows, the
+ * deadline ring). `full` adds the full-screen lighting: the amber flicker and the alarm sweep.
+ * `off`: a still room (reduced motion, or `?fx=0`).
+ */
+export type BackdropMotion = 'off' | 'lite' | 'full';
+
+/**
+ * `full` only with a GPU: in software rendering (no GPU, or a blocked driver) every frame of a
+ * full-screen layer is composited on the CPU, which cost a third or more of the frame rate.
+ * `?bg=off|lite|full` overrides the choice.
+ */
+export function backdropMotion(reducedMotion: boolean): BackdropMotion {
+  let forced: string | null = null;
+  let fx = true;
+  try {
+    const q = new URLSearchParams(window.location.search);
+    forced = q.get('bg');
+    fx = q.get('fx') !== '0';
+  } catch {
+    // ignore
+  }
+  if (forced === 'off' || forced === 'lite' || forced === 'full') return forced;
+  if (reducedMotion || !fx) return 'off';
+  return probeWebGL().software ? 'lite' : 'full';
+}
 
 export type BackdropMood = 'night' | 'warning' | 'critical' | 'dawn' | 'failure';
 
@@ -32,6 +63,9 @@ interface Building {
   lit: { x: number; y: number }[];
 }
 
+/** City windows that blink (taken out of the static picture and drawn as their own layers). */
+const BLINKERS = 7;
+
 /** The city outside the window (window glass spans x 70–530, y 100–560 in the viewBox). */
 const SKYLINE: readonly Building[] = (() => {
   const r = seeded(7);
@@ -50,13 +84,65 @@ const SKYLINE: readonly Building[] = (() => {
   return out;
 })();
 
+/** Every few buildings, one lit window that switches on and off now and then. */
+const BLINKING: readonly { x: number; y: number; dur: number; delay: number }[] = (() => {
+  const r = seeded(23);
+  const all = SKYLINE.flatMap((b) => b.lit).filter((w) => w.y > 140);
+  const step = Math.max(1, Math.floor(all.length / BLINKERS));
+  return Array.from({ length: Math.min(BLINKERS, all.length) }, (_, i) => ({
+    ...all[i * step]!,
+    dur: 5 + Math.floor(r() * 7),
+    delay: -Math.floor(r() * 9),
+  }));
+})();
+const BLINK_KEYS = new Set(BLINKING.map((w) => `${w.x}-${w.y}`));
+
+/** Absolutely positioned box in room (viewBox) coordinates. */
+function at(x: number, y: number, w: number, h: number): CSSProperties {
+  return { left: `${(x / 1600) * 100}%`, top: `${(y / 1000) * 100}%`, width: `${(w / 1600) * 100}%`, height: `${(h / 1000) * 100}%` };
+}
+
+/**
+ * The moving parts, each its own small layer so the browser can animate it without repainting the
+ * room: transforms and opacity only. Laid over the SVG with the same "slice" scaling.
+ */
+function Motion() {
+  return (
+    <div className="backdrop__motion">
+      {BLINKING.map((w) => (
+        <span
+          key={`${w.x}-${w.y}`}
+          className="backdrop__blink"
+          style={{ ...at(w.x, w.y, 5, 7), animationDuration: `${w.dur}s`, animationDelay: `${w.delay}s` }}
+        />
+      ))}
+      {/* the clock's second hand (centre 1390, 200) */}
+      <svg className="backdrop__second" style={at(1330, 140, 120, 120)} viewBox="-60 -60 120 120">
+        <rect x="-1" y="-58" width="2" height="58" fill="#d23a3a" />
+        <circle r="5" fill="#d23a3a" />
+      </svg>
+      {/* steam over the coffee (cup at 1360, 720) */}
+      <svg className="backdrop__steam" style={at(1360, 650, 60, 70)} viewBox="0 -70 60 70">
+        <path d="M18 -10 C 8 -30, 30 -40, 18 -62" fill="none" stroke="#ffffff" strokeWidth="4" strokeLinecap="round" />
+      </svg>
+      <svg className="backdrop__steam backdrop__steam--late" style={at(1360, 650, 60, 70)} viewBox="0 -70 60 70">
+        <path d="M40 -14 C 30 -34, 52 -44, 40 -66" fill="none" stroke="#ffffff" strokeWidth="4" strokeLinecap="round" />
+      </svg>
+      {/* a glowing ring around the deadline (1425, 477) once things go wrong */}
+      <svg className="backdrop__ring" style={at(1385, 441, 80, 72)} viewBox="-40 -36 80 72">
+        <ellipse rx="28" ry="24" fill="none" stroke="#ff6b6b" strokeWidth="3" />
+      </svg>
+    </div>
+  );
+}
+
 /** Clock hands at 23:47. */
 const HOUR_DEG = (11 + 47 / 60) * 30;
 const MINUTE_DEG = 47 * 6;
 
-export const Backdrop = memo(function Backdrop({ mood }: { mood: BackdropMood }) {
+export const Backdrop = memo(function Backdrop({ mood, motion }: { mood: BackdropMood; motion: BackdropMotion }) {
   return (
-    <div className="backdrop" data-mood={mood} aria-hidden="true">
+    <div className="backdrop" data-mood={mood} data-motion={motion} aria-hidden="true">
       <svg className="backdrop__room" viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice">
         <defs>
           <linearGradient id="bd-wall" x1="0" y1="0" x2="0" y2="1">
@@ -103,9 +189,11 @@ export const Backdrop = memo(function Backdrop({ mood }: { mood: BackdropMood })
           {SKYLINE.map((b) => (
             <g key={b.x}>
               <rect x={b.x} y={560 - b.h} width={b.w} height={b.h} fill="#090d1a" />
-              {b.lit.map((w) => (
-                <rect key={`${w.x}-${w.y}`} x={w.x} y={w.y} width="5" height="7" fill="#ffd27a" />
-              ))}
+              {b.lit
+                .filter((w) => !BLINK_KEYS.has(`${w.x}-${w.y}`))
+                .map((w) => (
+                  <rect key={`${w.x}-${w.y}`} x={w.x} y={w.y} width="5" height="7" fill="#ffd27a" />
+                ))}
             </g>
           ))}
           <rect x="296" y="100" width="8" height="460" fill="#0c0f18" />
@@ -122,8 +210,6 @@ export const Backdrop = memo(function Backdrop({ mood }: { mood: BackdropMood })
           ))}
           <rect x="-4" y="-34" width="8" height="40" rx="4" fill="#1d1d1f" transform={`rotate(${HOUR_DEG})`} />
           <rect x="-3" y="-52" width="6" height="58" rx="3" fill="#1d1d1f" transform={`rotate(${MINUTE_DEG})`} />
-          <rect x="-1" y="-58" width="2" height="58" fill="#d23a3a" transform="rotate(24)" />
-          <circle r="5" fill="#d23a3a" />
         </g>
 
         {/* calendar with the deadline circled */}
@@ -161,10 +247,8 @@ export const Backdrop = memo(function Backdrop({ mood }: { mood: BackdropMood })
         <rect x="1140" y="770" width="54" height="50" fill="#ffd23f" transform="rotate(-6 1167 795)" />
         <rect x="1180" y="776" width="54" height="50" fill="#ff8fc4" transform="rotate(5 1207 801)" />
 
-        {/* coffee, gone cold-ish */}
+        {/* coffee, gone cold-ish (the steam is a motion layer) */}
         <g transform="translate(1360 720)">
-          <path className="backdrop__steam" d="M18 -10 C 8 -30, 30 -40, 18 -62" fill="none" stroke="#ffffff" strokeWidth="4" strokeLinecap="round" />
-          <path className="backdrop__steam backdrop__steam--late" d="M40 -14 C 30 -34, 52 -44, 40 -66" fill="none" stroke="#ffffff" strokeWidth="4" strokeLinecap="round" />
           <rect x="0" y="0" width="60" height="74" rx="8" fill="#e8e3d6" />
           <path d="M60 18 C 84 18, 84 54, 60 54" fill="none" stroke="#e8e3d6" strokeWidth="9" />
           <rect x="0" y="0" width="60" height="10" rx="5" fill="#3a2414" />
@@ -172,8 +256,10 @@ export const Backdrop = memo(function Backdrop({ mood }: { mood: BackdropMood })
 
         <rect width="1600" height="1000" fill="url(#bd-vignette)" />
       </svg>
-      {/* mood lighting over the whole room */}
+      <Motion />
+      {/* mood lighting over the whole room; the sweep only runs in the boss fight with motion 'full' */}
       <div className="backdrop__light" />
+      {motion === 'full' && mood === 'critical' && <div className="backdrop__sweep" />}
     </div>
   );
 });

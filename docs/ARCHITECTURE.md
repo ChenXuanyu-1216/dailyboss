@@ -18,6 +18,8 @@ React 派发用户事件；界面与场景消费同一份状态。动画完成�
 
 实时战斗（v0.3）分两层：`src/game/fight.ts` 是纯函数的战斗模拟，`stepFight(def, state, input, dtMs)` 按 10 ms 子步推进并返回新状态与事件，随机数是状态里带种子的生成器；`src/ui/FightArena.tsx` 拥有时钟（`requestAnimationFrame` 中的 `performance.now()` 差值，单帧最多 100 ms，辅助模式乘 0.65）和输入设备。规则引擎看不到战斗状态，只接收结果：每次被击中一个 `HIT` 事件，打赢时一个 `FIGHT_WON` 事件。
 
+迭代 5 的进阶技巧也只在模拟里：战斗可选 `counter`（极限闪避／格挡提前露出破绽、跳过下一次卡纸，每轮一次）与 `heavyPull`（拽出在松手时生效，按住 `FIGHT_RULES.heavyPullMs` 变为重拽；弱点先缩回则记一次 `pinch` 命中）。输入多了一个可选的 `pull`（拽出键是否按住）；不传时拽出命令仍是立即的普通拽出。结算统计、个人记录与音效都只读取每帧的战斗事件（`FightArena` 的 `onFrame`），不反馈给规则。
+
 ## 目标文件与职责
 
 | 位置 | 职责 |
@@ -40,10 +42,13 @@ React 派发用户事件；界面与场景消费同一份状态。动画完成�
 | src/ui/FightArena.tsx | 战斗区域：时钟、键盘与触屏输入、渲染，向上报告被击中与胜利 |
 | src/ui/fightEffects.ts | 战斗粒子特效（墨粉云、墨渍、碎纸、火花、伤害数字）：只读取战斗状态与事件，不影响规则 |
 | src/ui/FightFxLayer.tsx | 特效 canvas 层：自有动画循环、尺寸适配、按绘制耗时自动降低粒子数量；减少动态效果或 `?fx=0` 时不挂载 |
-| src/ui/ResultPanel.tsx | 结局、重开和分享 |
-| src/ui/TitleScreen.tsx | 标题画面：今日关卡、路线、开始游戏与辅助模式 |
+| src/ui/ResultPanel.tsx | 结局、通关时间、被击中、个人最佳、改进建议、重开与 Boss 练习切换 |
+| src/ui/runStats.ts | 本局统计（由战斗事件累计）、时间格式与改进建议（纯函数） |
+| src/ui/records.ts | 个人最佳与 Boss 练习解锁，存于本机 localStorage，所有读写均容错 |
+| src/ui/audio.ts | Web Audio 实时合成的音效与声音开关；`soundsFor` 把战斗状态变化与事件映射为音效（纯函数） |
+| src/ui/TitleScreen.tsx | 标题画面：今日关卡、路线、开始游戏、Boss 练习（解锁后）、辅助模式与声音 |
 | src/ui/IntroSequence.tsx | 开场剧情（v0.4 `intro`）：逐字显示、插画、继续与跳过 |
-| src/ui/Backdrop.tsx | 游戏窗口后的房间背景（装饰性 SVG），灯光随强度与结局切换 |
+| src/ui/Backdrop.tsx | 游戏窗口后的房间背景（装饰性 SVG），灯光随强度与结局切换；动效是 SVG 之外的独立小图层，按 GPU／软件渲染／减少动态效果分为 full／lite／off |
 | src/scenes/catalog.ts | sceneId 与支持的 cue 清单（不依赖 React，供校验使用） |
 | src/scenes/registry.ts | sceneId 到本地组件的白名单（懒加载） |
 | src/scenes/SceneHost.tsx | 3D／简化显示切换、错误边界、上下文丢失处理 |
@@ -107,9 +112,9 @@ React 派发用户事件；界面与场景消费同一份状态。动画完成�
 ```ts
 type GameEvent =
   | { type: 'ACT'; actionId: string; skill?: 'success' | 'fail' }
-  | { type: 'HIT'; attack: 'paper' | 'toner' } // v0.3
+  | { type: 'HIT'; attack: 'paper' | 'toner' | 'pinch' } // v0.3；pinch 为迭代 5 的重拽夹手
   | { type: 'FIGHT_WON' } // v0.3
-  | { type: 'RESTART' };
+  | { type: 'RESTART'; phaseId?: string }; // phaseId：从该阶段开始新一局（Boss 练习），未知 ID 回到初始阶段
 type Outcome = 'perfect' | 'normal' | 'failure';
 
 interface GameState {

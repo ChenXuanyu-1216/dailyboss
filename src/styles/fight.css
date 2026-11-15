@@ -184,6 +184,11 @@
   border-right: 0;
 }
 
+/* the middle lane is a shade lighter, so the three lanes read apart at a glance */
+.fight__lane:nth-child(2) {
+  background: rgb(255 255 255 / 0.085);
+}
+
 .fight__lane[data-warn] {
   background: linear-gradient(to bottom, var(--c-fight-warn-soft), transparent 85%);
   box-shadow: inset 0 0 0 2px var(--c-fight-warn);
@@ -730,7 +735,8 @@
 
 .fight__ctl[data-ability='pull']:not([data-ready]),
 .fight__ctl[data-ability='reset']:not([data-ready]):not([data-active]) {
-  opacity: 0.55;
+  /* dimmed, not faded out: the label still reads at 4.5:1 */
+  opacity: 0.72;
 }
 
 /* the one button that matters right now */
@@ -1001,4 +1007,92 @@
   .fight__player[data-hurt] .fight__avatar {
     opacity: 0.6;
   }
+}
+
+/* --- iteration 5: counters and heavy pulls ------------------------------------------------ */
+
+/* a counter opening: gold, in the player's own lane */
+.fight__lane[data-weak='counter'] {
+  background: linear-gradient(to bottom, rgb(255 210 63 / 0.18), transparent 70%);
+}
+
+.fight__lane[data-weak='counter'] .fight__weak {
+  background: linear-gradient(#ffe48a, #ffc21a);
+  color: #2a1a00;
+  box-shadow: 0 0 0 3px rgb(255 194 26 / 0.4), 0 0 24px rgb(255 194 26 / 0.65), 0 8px 18px rgb(0 0 0 / 0.4);
+}
+
+/* heavy-pull progress: a ring that fills, then turns gold when the pull will be heavy */
+.fight__grip {
+  --grip: 0;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 70px;
+  height: 70px;
+  margin: -35px 0 0 -35px;
+  border-radius: 50%;
+  background: conic-gradient(var(--c-fight-weak) calc(var(--grip) * 360deg), rgb(255 255 255 / 0.12) 0);
+  -webkit-mask: radial-gradient(circle, transparent 28px, #000 29px);
+  mask: radial-gradient(circle, transparent 28px, #000 29px);
+}
+
+.fight__grip[data-full] {
+  background: #ffc21a;
+}
+
+.fight[data-gripping] .fight__lane[data-weak] .fight__weak {
+  animation: fight-strain 0.09s linear infinite alternate;
+}
+
+.fight__ctl[data-ability='pull'][data-active] {
+  background: var(--c-fight-weak);
+  border-color: var(--c-fight-weak);
+  color: #08240f;
+  box-shadow: 0 0 14px rgb(58 208 122 / 0.6);
+}
+
+
+.fight__flash[data-tone='perfect'] {
+  background: radial-gradient(circle at 50% 85%, rgb(255 214 90 / 0.5), transparent 60%);
+  box-shadow: inset 0 0 36px rgb(255 194 26 / 0.6);
+}
+
+.fight__flash[data-tone='heavy'] {
+  background: radial-gradient(circle at 50% 10%, rgb(255 240 170 / 0.8), rgb(255 194 26 / 0.2) 55%, transparent);
+  animation-duration: 0.45s;
+}
+
+.fight__call[data-tone='perfect'],
+.fight__call[data-tone='grip'] {
+  color: #8a5a00;
+  font-weight: var(--fw-bold);
+}
+
+@keyframes fight-strain {
+  from {
+    transform: translateY(0) scaleY(1);
+  }
+  to {
+    transform: translateY(2px) scaleY(1.06);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fight[data-gripping] .fight__lane[data-weak] .fight__weak {
+    animation: none;
+  }
+}
+
+/* abilities learned in an earlier fight: one compact line in the briefing */
+.fight__kit-known {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-3);
+  font-size: var(--fs-xs);
+  color: var(--c-ink-2);
+}
+
+.fight__kit-known .fight__kbd {
+  padding: 1px 6px;
 }
