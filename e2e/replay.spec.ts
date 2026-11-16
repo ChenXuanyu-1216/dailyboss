@@ -26,6 +26,28 @@ async function finishRun(game: GamePage) {
 }
 
 test.describe('boss practice and records', () => {
+  test('losing before reaching the boss does not unlock practice on the result screen', async ({ game, page }) => {
+    await game.openPaused();
+    await game.installBot({ idle: true });
+    await game.fightStart.click();
+    await finishRun(game);
+    await game.expectOutcome('failure');
+    await expect(page.getByTestId('switch-mode')).toHaveCount(0);
+    await page.reload();
+    await expect(page.getByTestId('title-practice')).toHaveCount(0);
+  });
+
+  test('previously unlocked practice remains available after an early full-run loss', async ({ game, page }) => {
+    await game.openPaused('render=simple&practice=1');
+    await game.installBot({ idle: true });
+    await game.fightStart.click();
+    await finishRun(game);
+    await game.expectOutcome('failure');
+    await page.getByTestId('switch-mode').click();
+    await expect(game.app).toHaveAttribute('data-mode', 'boss');
+    await expect(game.fight).toHaveAttribute('data-fight-id', 'printer-boss');
+  });
+
   test('practice is hidden on a first visit and unlocks once the boss is reached', async ({ game, page }) => {
     test.setTimeout(90_000);
     await page.goto('./');
@@ -93,6 +115,24 @@ test.describe('boss practice and records', () => {
     await finishRun(game);
     await expect(page.getByText('不计入最佳成绩')).toBeVisible();
     expect(await page.evaluate(() => localStorage.getItem('dailyboss:records:printer-from-hell'))).toBeNull();
+  });
+
+  test('changing assist settings before starting does not disqualify an unassisted first run', async ({ game, page }) => {
+    test.setTimeout(120_000);
+    await openTitle(page);
+    const assist = page.locator('.title__assist');
+    await assist.click();
+    await assist.click();
+    await expect(assist).toHaveAttribute('aria-pressed', 'false');
+    await game.enterGame();
+    await page.clock.pauseAt(CLOCK_START + 3_600_000);
+    await game.installBot();
+    await game.playThrough();
+    await game.expectOutcome('perfect');
+    await expect(page.getByText('不计入最佳成绩')).toHaveCount(0);
+    await expect(page.getByTestId('result-time')).toContainText('新纪录');
+    const stored = await page.evaluate(() => localStorage.getItem('dailyboss:records:printer-from-hell'));
+    expect(JSON.parse(stored!)).toMatchObject({ full: { hits: 0 } });
   });
 });
 

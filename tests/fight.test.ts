@@ -319,6 +319,28 @@ describe('mastery: precise defence and heavy pulls (iteration 5)', () => {
     expect(r.s.grip).toBeNull();
   });
 
+  it.each([
+    { remainingMs: 695, heavy: false },
+    { remainingMs: 699, heavy: false },
+    { remainingMs: 700, heavy: false },
+    { remainingMs: 701, heavy: true },
+  ])('resolves a heavy pull against expiry with $remainingMs ms left', ({ remainingMs, heavy }) => {
+    const def = mastery([WAIT]);
+    const s: FightState = {
+      ...createFight(def, 1),
+      t: 305,
+      nextMoveAt: 10_000,
+      exposure: { lane: 1, from: 0, until: 305 + remainingMs, damage: 1, stun: false },
+    };
+    const result = stepFight(def, s, { ...NO_INPUT, commands: ['pull'], pull: true }, 710);
+    expect(result.state.hp).toBe(heavy ? 1 : 3);
+    expect(result.state.hits).toBe(heavy ? 0 : 1);
+    expect(result.events).toContainEqual(
+      heavy ? { type: 'damage', amount: 2, stun: false, heavy: true } : { type: 'hit', attack: 'pinch' },
+    );
+    expect(result.state.grip).toBeNull();
+  });
+
   it('raising block while gripping lands the pull as a quick pull', () => {
     const def = mastery([JAM, WAIT]);
     const s = run(def, createFight(def, 1), 150).s;

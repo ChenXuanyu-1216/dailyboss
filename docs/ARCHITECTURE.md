@@ -18,7 +18,7 @@ React 派发用户事件；界面与场景消费同一份状态。动画完成�
 
 实时战斗（v0.3）分两层：`src/game/fight.ts` 是纯函数的战斗模拟，`stepFight(def, state, input, dtMs)` 按 10 ms 子步推进并返回新状态与事件，随机数是状态里带种子的生成器；`src/ui/FightArena.tsx` 拥有时钟（`requestAnimationFrame` 中的 `performance.now()` 差值，单帧最多 100 ms，辅助模式乘 0.65）和输入设备。规则引擎看不到战斗状态，只接收结果：每次被击中一个 `HIT` 事件，打赢时一个 `FIGHT_WON` 事件。
 
-迭代 5 的进阶技巧也只在模拟里：战斗可选 `counter`（极限闪避／格挡提前露出破绽、跳过下一次卡纸，每轮一次）与 `heavyPull`（拽出在松手时生效，按住 `FIGHT_RULES.heavyPullMs` 变为重拽；弱点先缩回则记一次 `pinch` 命中）。输入多了一个可选的 `pull`（拽出键是否按住）；不传时拽出命令仍是立即的普通拽出。结算统计、个人记录与音效都只读取每帧的战斗事件（`FightArena` 的 `onFrame`），不反馈给规则。
+迭代 5 的进阶技巧也只在模拟里：战斗可选 `counter`（极限闪避／格挡提前露出破绽、跳过下一次卡纸，每轮一次）与 `heavyPull`（提前松手时普通拽出生效，持续按住 `FIGHT_RULES.heavyPullMs` 后自动完成重拽；弱点先缩回或恰在蓄力完成时缩回，则记一次 `pinch` 命中）。输入多了一个可选的 `pull`（拽出键是否按住）；不传时拽出命令仍是立即的普通拽出。结算统计、个人记录与音效都只读取每帧的战斗事件（`FightArena` 的 `onFrame`），不反馈给规则。
 
 ## 目标文件与职责
 

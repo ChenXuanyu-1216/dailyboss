@@ -54,9 +54,12 @@ export function GameShell({ level }: { level: LevelDefinition }) {
   const canPractice = bossPhaseId !== null && (records.reachedBoss || practiceUnlocked());
   /** Run statistics, tallied from the fights' events (presentation only). */
   const stats = useRef(emptyStats());
-  /** Assist was on at some point in this run. */
-  const assistUsed = useRef(assist);
-  if (assist) assistUsed.current = true;
+  /**
+   * Assist was on at some point while this run was being played. Toggling it on the title screen
+   * (before the run starts) does not count: only the setting in play does.
+   */
+  const assistUsed = useRef(false);
+  if (assist && playing) assistUsed.current = true;
   const [summary, setSummary] = useState<RunSummary | null>(null);
   const fight = phase.fight ? getFight(phase.fight.id) : undefined;
   /** Live HP of the current fight, reported by the arena (presentation only). */
@@ -315,7 +318,7 @@ export function GameShell({ level }: { level: LevelDefinition }) {
                 printed={level.objective}
                 run={summary ?? undefined}
                 onRestart={restart}
-                onSwitchMode={bossPhaseId !== null ? switchMode : undefined}
+                onSwitchMode={canPractice ? switchMode : undefined}
               />
             ) : fight ? (
               <FightArena

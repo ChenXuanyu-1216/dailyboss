@@ -572,7 +572,14 @@ function substep(def: FightDefinition, s: FightState, dt: number, events: FightE
   }
 
   // 5. A heavy pull completes; or the weak point retracts, pinching a hand still gripping it.
-  if (s.grip && t1 - s.grip.from >= FIGHT_RULES.heavyPullMs) {
+  if (
+    s.grip &&
+    s.exposure &&
+    t1 - s.grip.from >= FIGHT_RULES.heavyPullMs &&
+    // Completion and retraction can share a substep. The opening ends exclusively, so
+    // an equal or earlier retraction must pinch instead of granting a late heavy pull.
+    s.grip.from + FIGHT_RULES.heavyPullMs < s.exposure.until
+  ) {
     releaseGrip(def, s, true, events);
     if (s.won) {
       s.t = t1;
