@@ -1,4 +1,5 @@
 import {
+  FIGHT_RULES,
   createFight,
   stepFight,
   type FightCommand,
@@ -42,8 +43,21 @@ export function runFight(
   return { won: s.won, hits: s.hits, t: s.t, whiffs };
 }
 
-/** A careful human: reacts after `reactionMs`, presses a key at most every `keyGapMs`. */
-export function skilledPolicy(reactionMs = 250, keyGapMs = 110): Policy {
+export interface Mastery {
+  /** Dodge and block in the last moment for counter openings (aims this many ms before impact). */
+  preciseMs?: number;
+  /** Hold pull for a heavy pull when the weak point stays out long enough and nothing is coming. */
+  heavy?: boolean;
+  /** Hold every pull for a heavy pull, whatever is coming (greedy). */
+  greedy?: boolean;
+}
+
+/**
+ * A careful human: reacts after `reactionMs`, presses a key at most every `keyGapMs`. Blocks as
+ * soon as the toner warning is seen and dodges as soon as a lane glows, so it never triggers the
+ * boss's precise-defence counters by accident; `mastery` turns on the iteration-5 techniques.
+ */
+export function skilledPolicy(reactionMs = 250, keyGapMs = 110, mastery: Mastery = {}): Policy {
   return (s, mem) => {
     const t = s.t;
     const seen = (at: number) => at + reactionMs <= t;
@@ -61,9 +75,34 @@ export function skilledPolicy(reactionMs = 250, keyGapMs = 110): Policy {
     };
     const idle: FightInput = { commands: [], block: false, reset: false };
 
-    // Toner about to fire (or firing): block, unless a paper in this lane lands first.
-    if (toner && toner.activeAt - t <= 200 && !danger(s.lane, toner.activeAt - t)) {
+    // Holding a heavy pull: keep holding unless something will land before it completes.
+    if (s.grip) {
+      const left = FIGHT_RULES.heavyPullMs - (t - s.grip.from);
+      const threatened =
+        danger(s.lane, left + 30) || (toner !== null && toner.activeAt - t <= left + 30) || false;
+      const keep = mastery.greedy || (!threatened && (s.exposure?.until ?? 0) - t > left + 40);
+      return { commands: [], block: false, reset: false, pull: keep };
+    }
+
+    // Toner coming: block (as soon as it is seen, or in the last moment when precise), unless a
+    // paper in this lane lands first.
+    const blockLead = mastery.preciseMs ?? Infinity;
+    if (toner && toner.activeAt - t <= blockLead && !danger(s.lane, toner.activeAt - t)) {
       return { commands: [], block: true, reset: false };
+    }
+
+    // Precise dodge: wait in the glowing lane until the sheet is about to land, then step out to
+    // a free neighbour.
+    if (mastery.preciseMs !== undefined && danger(s.lane)) {
+      const mine = Math.min(...papers.filter((p) => p.lane === s.lane).map((p) => p.impactAt));
+      const free = [s.lane - 1, s.lane + 1].filter(
+        (l) => l >= 0 && l <= 2 && !papers.some((p) => p.lane === l && p.impactAt <= mine + 400),
+      );
+      if (free.length > 0) {
+        if (mine - t > mastery.preciseMs) return idle;
+        if (canPress) return press(free[0]! < s.lane ? 'left' : 'right');
+        return idle;
+      }
     }
 
     // Standing in a lane that is about to be hit: step out, but never into a sheet that lands
@@ -90,7 +129,17 @@ export function skilledPolicy(reactionMs = 250, keyGapMs = 110): Policy {
     if (s.channelFrom !== null && charge && !toner) return { commands: [], block: false, reset: true };
 
     if (exposure) {
-      if (exposure.lane === s.lane) return canPress && t >= s.pullReadyAt ? press('pull') : idle;
+      if (exposure.lane === s.lane) {
+        if (!canPress || t < s.pullReadyAt) return idle;
+        const holdable =
+          mastery.greedy ||
+          (mastery.heavy &&
+            exposure.until - t > FIGHT_RULES.heavyPullMs + 80 &&
+            !danger(s.lane, FIGHT_RULES.heavyPullMs + 60) &&
+            !(toner && toner.activeAt - t <= FIGHT_RULES.heavyPullMs + 60));
+        mem.lastKey = t;
+        return { commands: ['pull'], block: false, reset: false, pull: Boolean(holdable) };
+      }
       const step = exposure.lane < s.lane ? -1 : 1;
       if (canPress && !danger(s.lane + step, 450)) return press(step < 0 ? 'left' : 'right');
       return idle;

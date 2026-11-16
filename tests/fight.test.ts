@@ -225,6 +225,145 @@ describe('fight rules', () => {
   });
 });
 
+describe('mastery: precise defence and heavy pulls (iteration 5)', () => {
+  const COUNTER = { perfectMs: 220, windowMs: 700, damage: 1 };
+  // Paper: spawns at 200 (intro 100 + first step), launches at 700, lands at 1000.
+  const mastery = (cycle: MoveSpec[], over: Partial<FightDefinition> = {}) =>
+    testFight(cycle, { counter: COUNTER, heavyPull: true, ...over });
+
+  it('a last-moment dodge opens a counter in your lane; an early dodge does not', () => {
+    const def = mastery([PAPER, WAIT]);
+    const atSpawn = run(def, createFight(def, 1), 300).s;
+    const impactAt = atSpawn.papers[0]!.impactAt;
+
+    const early = run(def, atSpawn, impactAt - atSpawn.t + 50, { commands: ['left'] });
+    expect(early.types).toEqual(['dodge']);
+    expect(early.s.exposure).toBeNull();
+
+    const waited = run(def, atSpawn, impactAt - atSpawn.t - 120).s;
+    const late = run(def, waited, 200, { commands: ['left'] });
+    expect(late.types).toEqual(['dodge', 'perfect']);
+    expect(late.events).toContainEqual({ type: 'perfect', defense: 'dodge', opened: true });
+    expect(late.s.exposure).toMatchObject({ lane: 0, counter: true, damage: 1 });
+    expect(run(def, late.s, 32, { commands: ['pull'] }).events).toContainEqual({
+      type: 'damage',
+      amount: 1,
+      stun: false,
+      counter: true,
+    });
+  });
+
+  it('a last-moment block opens a counter; holding block from the warning does not', () => {
+    const def = mastery([TONER, WAIT]);
+    const s0 = run(def, createFight(def, 1), 200).s; // warning since ~100, sprays at ~600
+    const early = run(def, s0, 1000, { block: true });
+    expect(early.types).toEqual(['block']);
+
+    const waited = run(def, s0, s0.toner!.activeAt - s0.t - 150).s;
+    const late = run(def, waited, 900, { block: true });
+    expect(late.events).toContainEqual({ type: 'perfect', defense: 'block', opened: true });
+    expect(late.s.exposure).toMatchObject({ counter: true, lane: late.s.lane });
+  });
+
+  it('a counter brings the next jam forward: that jam is skipped, so total openings stay the same', () => {
+    const def = mastery([PAPER, JAM, WAIT]);
+    const atSpawn = run(def, createFight(def, 1), 300).s;
+    const waited = run(def, atSpawn, atSpawn.papers[0]!.impactAt - atSpawn.t - 100).s;
+    const countered = run(def, waited, 1500, { commands: ['left'] });
+    expect(countered.types).toContain('perfect');
+    // The counter retracts unpulled after 700 ms, and no jam opens in its place.
+    expect(countered.types.filter((t) => t === 'window-missed')).toHaveLength(1);
+    expect(countered.s.exposure).toBeNull();
+    expect(countered.s.jamCredit).toBe(0);
+  });
+
+  it('only one counter per attack round', () => {
+    const TWO: MoveSpec = { kind: 'paper', shots: ['aimed', 'aimed'], intervalMs: 900, telegraphMs: 500, travelMs: 300 };
+    const def = mastery([TWO, WAIT]);
+    let s = createFight(def, 1);
+    const perfects: FightEvent[] = [];
+    // Dodge each sheet ~100 ms before it lands.
+    while (s.t < 3000) {
+      const mine = s.papers.find((p) => p.lane === s.lane && p.impactAt - s.t <= 100);
+      const input: FightInput = mine ? { ...NO_INPUT, commands: [s.lane === 0 ? 'right' : 'left'] } : NO_INPUT;
+      const r = stepFight(def, s, input, FRAME_MS);
+      perfects.push(...r.events.filter((e) => e.type === 'perfect'));
+      s = r.state;
+    }
+    expect(perfects.map((e) => e.type === 'perfect' && e.opened)).toEqual([true, false]);
+  });
+
+  it('pull lands on release: a quick tap deals normal damage, holding 700 ms deals +1', () => {
+    const def = mastery([JAM, WAIT]);
+    const s = run(def, createFight(def, 1), 150).s;
+    const lane = s.exposure!.lane;
+    const there = { ...s, lane };
+
+    const quick = run(def, there, 32, { commands: ['pull'], pull: false });
+    expect(quick.events).toContainEqual({ type: 'damage', amount: 1, stun: false });
+
+    const gripping = run(def, there, 300, { commands: ['pull'], pull: true });
+    expect(gripping.types).toEqual(['grip']);
+    expect(gripping.s.hp).toBe(3);
+    expect(run(def, gripping.s, 32, { commands: ['left'], pull: true }).s.lane).toBe(lane); // rooted
+    const heavy = run(def, gripping.s, FIGHT_RULES.heavyPullMs, { pull: true });
+    expect(heavy.events).toContainEqual({ type: 'damage', amount: 2, stun: false, heavy: true });
+  });
+
+  it('holding on when the weak point retracts pinches the hand: a hit', () => {
+    const def = mastery([{ kind: 'jam', windowMs: 400, lane: 'away' }, WAIT]);
+    const s = run(def, createFight(def, 1), 150).s;
+    const r = run(def, { ...s, lane: s.exposure!.lane }, 800, { commands: ['pull'], pull: true });
+    expect(r.events).toContainEqual({ type: 'hit', attack: 'pinch' });
+    expect(r.s.hp).toBe(3);
+    expect(r.s.grip).toBeNull();
+  });
+
+  it.each([
+    { remainingMs: 695, heavy: false },
+    { remainingMs: 699, heavy: false },
+    { remainingMs: 700, heavy: false },
+    { remainingMs: 701, heavy: true },
+  ])('resolves a heavy pull against expiry with $remainingMs ms left', ({ remainingMs, heavy }) => {
+    const def = mastery([WAIT]);
+    const s: FightState = {
+      ...createFight(def, 1),
+      t: 305,
+      nextMoveAt: 10_000,
+      exposure: { lane: 1, from: 0, until: 305 + remainingMs, damage: 1, stun: false },
+    };
+    const result = stepFight(def, s, { ...NO_INPUT, commands: ['pull'], pull: true }, 710);
+    expect(result.state.hp).toBe(heavy ? 1 : 3);
+    expect(result.state.hits).toBe(heavy ? 0 : 1);
+    expect(result.events).toContainEqual(
+      heavy ? { type: 'damage', amount: 2, stun: false, heavy: true } : { type: 'hit', attack: 'pinch' },
+    );
+    expect(result.state.grip).toBeNull();
+  });
+
+  it('raising block while gripping lands the pull as a quick pull', () => {
+    const def = mastery([JAM, WAIT]);
+    const s = run(def, createFight(def, 1), 150).s;
+    const there = { ...s, lane: s.exposure!.lane };
+    const gripping = run(def, there, 50, { commands: ['pull'], pull: true }).s;
+    expect(gripping.grip).not.toBeNull();
+    const blocked = run(def, gripping, 32, { pull: true, block: true });
+    expect(blocked.events).toContainEqual({ type: 'damage', amount: 1, stun: false });
+    expect(blocked.s.blocking).toBe(true);
+  });
+
+  it('fights without the mastery options keep instant pulls and give no counters', () => {
+    const def = testFight([PAPER, JAM, WAIT]);
+    const atSpawn = run(def, createFight(def, 1), 300).s;
+    const waited = run(def, atSpawn, atSpawn.papers[0]!.impactAt - atSpawn.t - 100).s;
+    expect(run(def, waited, 200, { commands: ['left'] }).types).toEqual(['dodge']);
+    for (const id of ['printer-offline', 'printer-queue']) {
+      expect(FIGHTS[id]!.counter).toBeUndefined();
+      expect(FIGHTS[id]!.heavyPull).toBeFalsy();
+    }
+  });
+});
+
 describe('registered fights', () => {
   it('every fight is registered under its own id and getFight ignores prototype keys', () => {
     for (const id of FIGHT_IDS) expect(getFight(id)?.id).toBe(id);
@@ -322,6 +461,36 @@ describe('balance (scripted players, 20 seeds each)', () => {
       expect(withReset.won).toBe(true);
     }
     expect(runFight(def, 1, neverReset()).t).toBeGreaterThan(runFight(def, 1, skilledPolicy(350)).t);
+  });
+
+  it('mastery pays off: precise defence and heavy pulls clear the boss much faster, still without hits', () => {
+    // Iteration 5 review: skilled play should change the pace. Averages over the 20 seeds.
+    const def = FIGHTS['printer-boss']!;
+    const avg = (policy: () => Policy) => {
+      let t = 0;
+      for (const seed of seeds) {
+        const r = runFight(def, seed, policy());
+        expect(r, `seed ${seed}`).toMatchObject({ won: true, hits: 0 });
+        t += r.t;
+      }
+      return t / seeds.length;
+    };
+    const base = avg(() => skilledPolicy(350));
+    const precise = avg(() => skilledPolicy(350, 110, { preciseMs: 150 }));
+    const heavy = avg(() => skilledPolicy(350, 110, { heavy: true }));
+    const master = avg(() => skilledPolicy(350, 110, { preciseMs: 150, heavy: true }));
+    expect(precise).toBeLessThan(base * 0.8);
+    expect(heavy).toBeLessThan(base * 0.9);
+    expect(master).toBeLessThan(base * 0.75);
+    // ...but not so much that the fight collapses.
+    expect(master).toBeGreaterThan(base * 0.5);
+  });
+
+  it('heavy pulls are a gamble: holding every pull regardless gets the player hit', () => {
+    const def = FIGHTS['printer-boss']!;
+    let hits = 0;
+    for (const seed of seeds) hits += runFight(def, seed, skilledPolicy(350, 110, { greedy: true })).hits;
+    expect(hits / seeds.length).toBeGreaterThanOrEqual(1.5);
   });
 
   it('a flawless boss fight takes about a minute of fight time', () => {

@@ -77,3 +77,9 @@ export function fightSeed(): number {
   }
   return Math.floor(Math.random() * 2 ** 31);
 }
+
+/** `?practice=1` unlocks boss practice without reaching the boss first (tests, returning players on a new device). */
+export function practiceUnlocked(): boolean {
+  if (typeof window === 'undefined') return false;
+  return new URLSearchParams(window.location.search).get('practice') === '1';
+}

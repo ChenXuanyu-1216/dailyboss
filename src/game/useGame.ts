@@ -26,7 +26,10 @@ export function useGame(level: LevelDefinition) {
   );
   const hit = useCallback((attack: AttackKind) => dispatch({ type: 'HIT', attack }), []);
   const winFight = useCallback(() => dispatch({ type: 'FIGHT_WON' }), []);
-  const restart = useCallback(() => dispatch({ type: 'RESTART' }), []);
+  const restart = useCallback(
+    (phaseId?: string) => dispatch(phaseId === undefined ? { type: 'RESTART' } : { type: 'RESTART', phaseId }),
+    [],
+  );
 
   const derived = useMemo(
     () => ({

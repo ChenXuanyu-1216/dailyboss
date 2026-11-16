@@ -2,7 +2,7 @@ import { Component, Suspense, useCallback, useState, type ReactNode } from 'reac
 import type { SceneProps } from '../game/contracts';
 import { FallbackScene } from './FallbackScene';
 import { getSceneComponent } from './registry';
-import { detectWebGL, initialRenderMode, type RenderMode } from './webgl';
+import { detectWebGL, initialRenderMode, probeWebGL, type RenderMode } from './webgl';
 
 type Failure = 'unsupported' | 'lost' | 'error' | null;
 
@@ -34,7 +34,7 @@ interface Props {
 /** Chooses between the registered 3D scene and the simplified display. Owns no game rules. */
 export function SceneHost({ sceneId, sceneProps, statusText }: Props) {
   const [mode, setMode] = useState<RenderMode>(initialRenderMode);
-  const [failure, setFailure] = useState<Failure>(() => (detectWebGL() ? null : 'unsupported'));
+  const [failure, setFailure] = useState<Failure>(() => (probeWebGL().webgl ? null : 'unsupported'));
   const [attempt, setAttempt] = useState(0);
   const onContextLost = useCallback(() => setFailure('lost'), []);
   const onError = useCallback(() => setFailure('error'), []);

@@ -25,20 +25,21 @@ An open-source browser game that turns everyday frustrations into boss fights.
 - 纯函数规则引擎（`useReducer` 接入）：离线 → 队列 → 卡纸 Boss 战，完美／普通／失败结局、重开、无效行动与终局保护、耐心归零优先判负。
 - 协议 v0.4（向后兼容）：关卡可带开场剧情（`intro`）。v0.3 起阶段可以是实时战斗（`fight`），每次被击中扣 1 耐心，打赢后进入 `fight.target`。v0.2 的行动反馈、技巧判定（时机／连打）与阶段强度，以及 v0.1 关卡，都仍可加载。
 - 进入游戏（迭代 4）：标题画面（今日副本、Boss 立绘、关卡路线、开始游戏与辅助模式）→ 可跳过的开场剧情（逐字显示、带插画）→ 第一场战斗。游戏窗口后是深夜的房间背景，灯光随局势变化（故障升级、Boss 战警报、通关天亮、失败变灰）。
+- 重玩理由与技巧空间（迭代 5）：Boss 战加入两个进阶技巧——纸快落地时才闪开、墨粉喷出前一刻才格挡，打印机会在你脚下提前露出破绽；按住 ↑ 重拽，伤害 +1，但按住时不能移动，弱点先缩回会被夹手。结算显示通关时间、被击中次数、个人最佳（本机保存，辅助模式不计入）和一条改进建议；到达过 Boss 后可以直接 Boss 练习。实时合成的音效（可关闭）。背景有秒针、热气、窗外灯光等小动效，有 GPU 时 Boss 战还有警报扫光。
 - 实时战斗（迭代 2）：纯函数、按时间步进的战斗模拟（`src/game/fight.ts`，带种子的随机数，可完全复现）。三条通道；打印机的招式都有预警：纸张砸向发光的通道（闪避 ←/→）、墨粉喷满全屏（按住格挡 ↓，格挡时不能移动）、弱点只在某条通道短暂露出（走过去按 ↑ 拽出，乱拽会被夹手）、「安装更新」充能会回血（按住 K 重启打断，打断后露出大弱点）。两场热身战各教两个技能，Boss 战分三个形态（盖板 → 拔河 → 最后两厘米）逐步叠加招式。初始耐心 5，零失误才是完美结局。
 - 平衡由脚本玩家验证（Vitest）：反应 350 ms 的谨慎玩家在 20 个种子下全部零失误通关；站着不动、狂按拽出、一直格挡、乱按所有键都会耗尽耐心；反应 900 ms 打不过 Boss。零失误的 Boss 战约 1 分钟战斗时间。
 - Boss 战演出：「BOSS 出现」标题卡、Boss 血条、扣耐心时的反击（纸张飞出、震屏、「−1 耐心」）、每回合递增的损伤、胜利打印纸。
 - 战斗操作：键盘（←/→ 或 A/D、↓/S、↑/W/J、K/E，按物理键位识别，输入法开启时也可用）与触屏按钮（点按闪避、拽出；按住格挡、重启）。每场战斗前有技能说明；Esc 或窗口失焦时暂停。辅助模式把战斗放慢到 65%；`?seed=` 固定战斗随机数。
 - v0.2 关卡用的技巧小游戏（时机、连打）与行动按钮仍然支持，但当前关卡已不使用，只有单元测试覆盖。
-- DOM 操作界面：阶段、目标、耐心、战斗区域、每步反馈、操作记录（含每次被击中）、结算面板（显示被击中次数）；R 重开。
+- DOM 操作界面：阶段、目标、耐心、战斗区域、每步反馈、操作记录（含每次被击中）、结算面板；R 重开。
 - 界面随故障逐步异变（警示色、扫描线、轻微扭曲），尊重「减少动态效果」设置。
 - Three.js／React Three Fiber 几何体打印机，按场景注册表加载；WebGL 不可用、上下文丢失或手动切换时使用简化显示，游戏照常可玩。
 - 生产构建使用 GitHub Pages 子路径 `/dailyboss/`。
-- Playwright 浏览器测试（38 项）针对 `/dailyboss/` 下的生产构建运行。页面内的脚本玩家只读取战斗区域渲染出的内容并按真实按键，在 Playwright 假时钟下逐帧打完整局。覆盖三种结局、各技能与暂停、触屏按钮、真实 WebGL、上下文丢失、无 WebGL、手机横竖屏视口与减少动态效果。
+- Playwright 浏览器测试（65 项）针对 `/dailyboss/` 下的生产构建运行。页面内的脚本玩家只读取战斗区域渲染出的内容并按真实按键，在 Playwright 假时钟下逐帧打完整局。覆盖三种结局、各技能与暂停、触屏按钮、真实 WebGL、上下文丢失、无 WebGL、手机横竖屏视口与减少动态效果。
 - 修复：手动切换「简化显示」时误报「3D 渲染中断」。
 - GitHub Pages 部署：`main` 上的 CI 与部署已在 GitHub 上成功运行（2026-11-10），当时全部 21 项浏览器测试在线上站点同样通过。迭代 2 尚未部署。
 
-**尚未完成**：迭代 2 的试玩 #3 与数值调整（2–4 分钟目标）、结局分享、音效、真机（尤其触屏）测试、动画人工验收。详见 [开发路线](docs/ROADMAP.md)。
+**尚未完成**：迭代 5 的试玩 #6、数值调整（2–4 分钟目标）、结局分享、真机（尤其触屏）测试、动画人工验收。详见 [开发路线](docs/ROADMAP.md)。
 
 ### 运行
 
@@ -57,7 +58,7 @@ npx playwright install chromium   # 首次运行浏览器测试前安装 Chromiu
 npm run test:e2e     # 生产构建 + Playwright 浏览器测试（/dailyboss/）
 ```
 
-调试参数：`?render=simple` 直接使用简化显示；`?assist=1` 开启辅助模式（战斗放慢到 65%，技巧判定自动成功，也可在界面右下角切换）；`?seed=<整数>` 固定战斗随机数；`?level=<id>` 选择已登记的关卡（未知 ID 会显示配置错误页）。如需其他部署路径，可设置 `BASE_PATH=/其他路径/ npm run build`。
+调试参数：`?render=simple` 直接使用简化显示；`?assist=1` 开启辅助模式（战斗放慢到 65%，技巧判定自动成功，也可在界面右下角切换）；`?seed=<整数>` 固定战斗随机数；`?level=<id>` 选择已登记的关卡（未知 ID 会显示配置错误页）；`?practice=1` 直接解锁 Boss 练习；`?sfx=0` 静音；`?bg=off|lite|full` 指定背景动效等级；`?fx=0` 关闭战斗粒子和背景动效。如需其他部署路径，可设置 `BASE_PATH=/其他路径/ npm run build`。
 
 ### 自动化测试与 CI
 
@@ -159,6 +160,7 @@ First runnable version. Level 1, "Printer From Hell" (地狱打印机), is fully
 - Pure rule engine wired through `useReducer`: offline → queue → paper-jam boss fight. It handles perfect/normal/failure endings, restart, invalid actions and actions after the game ends. Failure takes precedence when patience hits zero.
 - Protocol v0.4, backward compatible: a level can carry an opening story (`intro`). Since v0.3 a phase can be a real-time `fight`. Each hit taken costs 1 patience, and winning follows `fight.target`. v0.2 levels (feedback text, timing/mash skill checks, intensity) and v0.1 levels still load.
 - Way into the game (Iteration 4): a title screen (today's level, boss portrait, the route through the phases, Start and Assist), then a skippable opening story (typed lines with illustrations), then the first fight. Behind the game window is a room late at night whose lighting follows the game: amber as things go wrong, a red alarm in the boss fight, sunrise after a win, grey after a loss.
+- Reasons to replay and room for skill (Iteration 5): the boss fight adds two advanced techniques. Step out of the lane just before the sheet lands, or raise the block just before the toner sprays, and the printer exposes an opening under you early. Hold ↑ for a heavy pull worth +1 damage; you can't move while holding, and you get pinched if the weak point retracts first. The results show clear time, hits taken, the personal best (stored in this browser; assist runs don't count) and one tip based on the run. Once you have reached the boss, boss practice starts there directly. Sound effects are synthesised in the browser and can be turned off. The backdrop has small motion (the second hand, steam, city windows), plus an alarm sweep in the boss fight when a GPU is available.
 - Real-time fights (Iteration 2): a pure, time-stepped simulation (`src/game/fight.ts`) with a seeded RNG, so a seed plus the inputs replays a fight exactly. There are three lanes, and every printer attack is telegraphed. Each one has one answer:
   - paper lands in the lane that glowed: **dodge** with ←/→;
   - toner fills the screen: hold **block** (↓); you can't move while blocking;
@@ -172,11 +174,11 @@ First runnable version. Level 1, "Printer From Hell" (地狱打印机), is fully
   - damage that grows each round, and a victory print.
 - Fight controls: keyboard (←/→ or A/D, ↓/S, ↑/W/J, K/E, matched by physical key so they work with an IME on) and touch buttons (tap to dodge and pull; press and hold to block and reset). A briefing before each fight lists the abilities. Escape, or the window losing focus, pauses the fight. Assist mode slows fights to 65%, and `?seed=` fixes the fight RNG.
 - The v0.2 timing/mash mini-games and action buttons are still supported for v0.2 levels. The shipped level no longer uses them, so only unit tests cover them now.
-- DOM interface: phase, objective, patience, fight arena, feedback after every step, action log (including every hit), and result panel (showing hits taken). R restarts.
+- DOM interface: phase, objective, patience, fight arena, feedback after every step, action log (including every hit), and result panel. R restarts.
 - The interface degrades step by step as faults escalate (warning colors, scanlines, slight distortion) and respects `prefers-reduced-motion`.
 - A primitive-geometry printer built with Three.js / React Three Fiber and loaded through a scene registry. A simplified DOM display takes over when WebGL is unavailable, when the context is lost, or when the player turns it on. The game stays fully playable either way.
 - Production builds use the GitHub Pages subpath `/dailyboss/`.
-- 38 Playwright browser tests run against the production build under `/dailyboss/`. An in-page scripted player reads only what the arena renders and presses real keys, playing whole runs frame by frame under Playwright's fake clock. They cover:
+- 65 Playwright browser tests run against the production build under `/dailyboss/`. An in-page scripted player reads only what the arena renders and presses real keys, playing whole runs frame by frame under Playwright's fake clock. They cover:
   - all three endings, every ability, pausing, and touch controls;
   - real WebGL, context loss and no WebGL;
   - mobile portrait and landscape viewports, and reduced motion.
@@ -184,9 +186,8 @@ First runnable version. Level 1, "Printer From Hell" (地狱打印机), is fully
 - GitHub Pages deployment: CI and the deploy job ran successfully on `main` on GitHub (2026-11-10), and the 21 browser tests of that version also passed against the live site. Iteration 2 is not deployed yet.
 
 **Not done yet:**
-- playtest #3 of Iteration 2, and balance against the 2–4 minute target;
+- playtest #6 of Iteration 5, and balance against the 2–4 minute target;
 - sharing results;
-- sound;
 - real-device testing (especially touch);
 - manual approval of the animations. See the [roadmap](docs/ROADMAP.md).
 
@@ -207,7 +208,7 @@ npx playwright install chromium   # once, before the first browser test run
 npm run test:e2e     # production build + Playwright browser tests (/dailyboss/)
 ```
 
-Debug parameters: `?render=simple` starts in the simplified display. `?assist=1` turns on assist mode, which slows fights to 65% and makes skill checks succeed (there is also a toggle at the bottom right). `?seed=<integer>` fixes the fight RNG. `?level=<id>` picks a registered level; an unknown ID shows the config error page. To deploy under a different path, run `BASE_PATH=/other/ npm run build`.
+Debug parameters: `?render=simple` starts in the simplified display. `?assist=1` turns on assist mode, which slows fights to 65% and makes skill checks succeed (there is also a toggle at the bottom right). `?seed=<integer>` fixes the fight RNG. `?level=<id>` picks a registered level; an unknown ID shows the config error page. `?practice=1` unlocks boss practice, `?sfx=0` mutes, `?bg=off|lite|full` picks the backdrop motion level, and `?fx=0` turns off fight particles and backdrop motion. To deploy under a different path, run `BASE_PATH=/other/ npm run build`.
 
 ### Tests and CI
 

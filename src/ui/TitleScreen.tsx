@@ -2,6 +2,7 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import type { LevelDefinition } from '../game/contracts';
 import { getPhaseIntensity } from '../game/engine';
 import { INTENSITY_LABEL, UI } from './copy';
+import { formatTime } from './runStats';
 import { IntroArtView } from './IntroSequence';
 
 /** Boss portrait per scene; scenes without one get the generic glowing eyes. */
@@ -36,10 +37,16 @@ interface Props {
   assist: boolean;
   onToggleAssist: () => void;
   onStart: () => void;
+  /** Present once boss practice is unlocked (the player has reached the boss before). */
+  onPractice?: () => void;
+  /** Fastest full win in this browser, if any. */
+  bestMs?: number | null;
+  soundOn: boolean;
+  onToggleSound: () => void;
 }
 
 /** The front door: game name, today's level (its route through the phases) and a start button. */
-export function TitleScreen({ level, assist, onToggleAssist, onStart }: Props) {
+export function TitleScreen({ level, assist, onToggleAssist, onStart, onPractice, bestMs, soundOn, onToggleSound }: Props) {
   const startRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     startRef.current?.focus();
@@ -107,6 +114,17 @@ export function TitleScreen({ level, assist, onToggleAssist, onStart }: Props) {
             Enter
           </kbd>
         </button>
+        {onPractice && (
+          <button
+            type="button"
+            className="btn btn--ghost title__practice"
+            onClick={onPractice}
+            title={UI.bossPracticeHint}
+            data-testid="title-practice"
+          >
+            {UI.bossPractice}
+          </button>
+        )}
         <button
           type="button"
           className="btn btn--ghost title__assist"
@@ -116,7 +134,11 @@ export function TitleScreen({ level, assist, onToggleAssist, onStart }: Props) {
         >
           {UI.assist}
         </button>
+        <button type="button" className="btn btn--ghost title__sound" aria-pressed={soundOn} onClick={onToggleSound}>
+          {soundOn ? UI.soundOn : UI.soundOff}
+        </button>
       </div>
+      {bestMs != null && <p className="title__best">{UI.titleBest(formatTime(bestMs))}</p>}
       <p className="title__hint">{UI.titleControls}</p>
     </div>
   );

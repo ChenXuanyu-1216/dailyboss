@@ -1,10 +1,11 @@
 /* ---------- the room behind the game window (src/ui/Backdrop.tsx) ---------- */
 
 /*
- * The room is static: no animations and no transitions. Moods change the lighting instantly and
- * the game window carries all the motion. Animating full-screen layers here (an alarm sweep, a
- * pulsing wash) cost a third or more of the frame rate in software rendering, so keep any future
- * motion to small elements and measure it.
+ * The room picture (one full-screen SVG) never animates: any change inside it repaints all of
+ * it. Motion lives in small separate layers (.backdrop__motion) and only uses transform and
+ * opacity, so the compositor moves them without repainting. Full-screen motion (the amber
+ * flicker and the alarm sweep) runs only with data-motion='full', i.e. with a GPU: in software
+ * rendering it cost a third or more of the frame rate. data-motion='off' is a still room.
  */
 
 .backdrop {
@@ -82,4 +83,199 @@
 
 .backdrop[data-mood='failure'] .backdrop__steam {
   opacity: 0;
+}
+
+/* ---------- motion layers ---------- */
+
+/* the same "slice" scaling as the SVG: cover the viewport, keep 16:10, stay centred */
+.backdrop {
+  container-type: size;
+}
+
+.backdrop__motion {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: max(100vw, 160vh);
+  height: max(100vh, 62.5vw);
+  width: max(100cqw, 160cqh);
+  height: max(100cqh, 62.5cqw);
+  transform: translate(-50%, -50%);
+}
+
+.backdrop__motion > * {
+  position: absolute;
+  display: block;
+  overflow: visible;
+}
+
+.backdrop__blink {
+  background: #ffd27a;
+}
+
+.backdrop__second {
+  transform: rotate(24deg);
+}
+
+.backdrop__ring {
+  opacity: 0;
+}
+
+.backdrop[data-mood='warning'] .backdrop__ring,
+.backdrop[data-mood='critical'] .backdrop__ring {
+  opacity: 0.7;
+}
+
+.backdrop[data-mood='dawn'] .backdrop__blink,
+.backdrop[data-mood='failure'] .backdrop__ring {
+  opacity: 0;
+}
+
+/* lite and full: the small layers move */
+.backdrop:not([data-motion='off']) .backdrop__second {
+  /* one tick a second, starting from the 24 s drawn in the picture */
+  animation: bd-tick 60s steps(60) -4s infinite;
+  will-change: transform;
+}
+
+.backdrop:not([data-motion='off']) .backdrop__steam {
+  opacity: 0;
+  animation: bd-steam 3.6s ease-out infinite;
+  will-change: transform, opacity;
+}
+
+.backdrop:not([data-motion='off']) .backdrop__steam--late {
+  animation-delay: -1.8s;
+}
+
+.backdrop:not([data-motion='off']) .backdrop__blink {
+  animation: bd-window 8s steps(1, end) infinite;
+  will-change: opacity;
+}
+
+.backdrop:not([data-motion='off'])[data-mood='warning'] .backdrop__ring,
+.backdrop:not([data-motion='off'])[data-mood='critical'] .backdrop__ring {
+  animation: bd-pulse 1.1s ease-in-out infinite alternate;
+  will-change: transform, opacity;
+}
+
+.backdrop:not([data-motion='off'])[data-mood='critical'] .backdrop__ring {
+  animation-duration: 0.55s;
+}
+
+.backdrop[data-mood='failure'] .backdrop__motion * {
+  animation: none !important;
+}
+
+/* full only: full-screen lighting */
+.backdrop[data-motion='full'][data-mood='warning'] .backdrop__light {
+  animation: bd-flicker 6.5s linear infinite;
+  will-change: opacity;
+}
+
+.backdrop[data-motion='full'][data-mood='critical'] .backdrop__light {
+  animation: bd-alarm 1.2s ease-in-out infinite alternate;
+  will-change: opacity;
+}
+
+.backdrop__sweep {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 38vw;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgb(255 50 60 / 0.16) 40%,
+    rgb(255 70 80 / 0.28) 50%,
+    rgb(255 50 60 / 0.16) 60%,
+    transparent
+  );
+  animation: bd-sweep 3.4s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+@keyframes bd-tick {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes bd-steam {
+  0% {
+    opacity: 0;
+    transform: translateY(6%);
+  }
+  30% {
+    opacity: 0.35;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-26%);
+  }
+}
+
+@keyframes bd-window {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  55% {
+    opacity: 0.12;
+  }
+}
+
+@keyframes bd-pulse {
+  from {
+    opacity: 0.45;
+    transform: scale(1);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+}
+
+@keyframes bd-flicker {
+  0%,
+  18%,
+  22%,
+  64%,
+  100% {
+    opacity: 1;
+  }
+  20%,
+  66% {
+    opacity: 0.45;
+  }
+}
+
+@keyframes bd-alarm {
+  from {
+    opacity: 0.55;
+  }
+}
+
+@keyframes bd-sweep {
+  from {
+    transform: translateX(-38vw);
+  }
+  to {
+    transform: translateX(100vw);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .backdrop *,
+  .backdrop__light {
+    animation: none !important;
+  }
+
+  .backdrop__sweep {
+    display: none;
+  }
 }

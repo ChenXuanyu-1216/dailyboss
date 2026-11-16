@@ -137,3 +137,33 @@ An informal session, reported second-hand by the project owner: a few friends pl
 **据此做出的改动 / Changes made in response**（迭代 4，见 [ROADMAP.md](ROADMAP.md)）：打开游戏先看到标题画面（游戏名、今日副本、Boss 立绘、目标与耐心、三个阶段的路线、开始游戏和辅助模式），然后是一段可跳过的开场剧情：四段文字逐字打出，配插画（23:47 的钟、写好的文档、「打印机脱机」、睁开的红眼睛），之后才进入第一场战斗。开场文案写在关卡 JSON 里（协议 v0.4 的 `intro`）。游戏窗口外不再是纯色背景，而是深夜的房间：窗外的城市、停在 23:47 的挂钟、圈出截止日的日历、台灯和咖啡；灯光随局势变化（故障升级时偏琥珀色、Boss 战时整个房间变成警报红、通关后天亮、失败后变灰）。房间本身是静止的，动效集中在游戏窗口里。重开时直接回到第一场战斗，不再经过标题。是否解决问题，需要试玩 #5 验证。
 
 Opening the game now shows a title screen first (game name, today's level, a boss portrait, the objective and patience, the route through the three phases, Start and Assist), then a skippable opening story: four lines typed out one at a time with illustrations (a clock at 23:47, the finished document, "Printer offline", red eyes opening), and only then the first fight. The story text lives in the level JSON (the `intro` field, protocol v0.4). Behind the game window, the flat background is replaced by a room late at night: the city outside the window, a wall clock at 23:47, a calendar with the deadline circled, a desk lamp and a coffee. The lighting follows the game: amber as things go wrong, alarm-red in the boss fight, sunrise after a win, grey after a loss. The room itself is static; the motion stays in the game window. Restarting goes straight back to the first fight, not the title. Whether this fixes the problem needs playtest #5.
+
+### 试玩 #5 — 2026-11-15 前后（由作者于 2026-11-15 转述）/ around 2026-11-15 (reported by the owner on 2026-11-15)
+
+几位朋友试玩迭代 4 的版本后给出的一份书面反馈，由作者转述。没有按模板逐人记录，下列未知项如实标为「未记录」。其中有几条（「没有找到音效实现」「试玩历史里既有嫌太简单、也有要求降低最终 Boss 难度」）引用的是项目代码和文档，不只是游玩感受。
+
+Written feedback from a few friends after playing the Iteration 4 build, passed on by the owner. It was not recorded per player with the template; unknown fields are marked "not recorded". A few points ("no game-audio implementation found", "the playtest history has both 'too easy' and 'lower the final boss difficulty'") refer to the project's code and docs, not only to play.
+
+- 玩家人数 Players: 几位朋友，具体人数未记录 / a few friends, exact number not recorded
+- 设备 / 浏览器 Device / browser: 未记录 / not recorded
+- 屏幕方向 Orientation: 未记录 / not recorded
+- 显示模式 Display: 未记录 / not recorded
+- 首局用时 First-run completion time: 未记录 / not recorded
+- 首局结局 First-run outcome: 未记录 / not recorded
+- 令人困惑的选项或反馈 Confusing choices or feedback: 车道边界太淡、小字对比度不足 / faint lane boundaries and low-contrast small labels
+- 是否注意到故障升级 Escalation noticeable?: 未记录 / not recorded
+- 是否想再玩 Wanted to replay?: 未记录；反馈认为缺少再玩的理由 / not recorded; the feedback says there is little reason to retry
+- 观察到的问题 Observed bugs: 未报告 / none reported
+- 其他备注 Other notes:
+  1. 玩家在执行指令，而不是做有意思的决定：每种攻击只有一种应对，学会后就没有新发现。建议加入一个有取舍的选择，例如安全的快拽和冒着被反击的风险按住重拽。/ Players execute instructions rather than make interesting decisions: each attack has one answer, and discovery fades once learned. Suggests one meaningful trade-off, e.g. a safe quick pull versus holding longer for extra damage at the risk of a counterattack.
+  2. 只有弱点出现在自己的通道时才能攻击，防守再好也只是在等下一次机会。建议精准的闪避或格挡能提前带来破绽。/ You can only deal damage when a weak point opens in your lane, so good defence just means waiting. Suggests precise dodges or blocks should bring an opening forward.
+  3. 3D 打印机占了半个窗口，战斗却在旁边的小面板里，像「车道小游戏 + 打印机插图」。/ The 3D printer takes half the window while the fight happens in a separate small panel; it reads as a lane game next to a printer illustration.
+  4. 重插 USB、清队列、拽卡纸用的是同一套交互，没有兑现日常故障的荒诞感。/ Reconnecting USB, clearing the queue and pulling paper share one interaction; the absurd premise is under-delivered.
+  5. 结算只有「消耗耐心」和「被击中」（在本关是同一个数）和重开；只有一个关卡。建议显示通关时间、个人最佳和一条具体的改进建议，并提供 Boss 练习。/ The results show patience spent and hits taken (the same number in this level) plus Restart, and there is only one level. Suggests clear time, a personal best, one specific tip, and boss practice.
+  6. 学习难度和精通难度应该分开：用简短的可玩示例教学，用组合和可选的更难变体挑战熟练玩家。/ Separate learning difficulty from mastery difficulty: teach with short playable examples, challenge experienced players with combinations and optional harder variants.
+  7. 没有音效：打印机噪声、充能声、格挡撞击、撕纸声会增强打击感。/ No sound: printer noise, charging, block impacts and a paper tear would improve the sense of contact.
+  8. 没有提到迭代 4 的标题画面、开场剧情和背景，因此「开场节奏、背景观感」仍待验证。/ Nothing about Iteration 4's title screen, opening story or backdrop, so those remain unverified.
+
+**据此做出的改动 / Changes made in response**（迭代 5，见 [ROADMAP.md](ROADMAP.md)）：Boss 战加入两个进阶技巧：纸快落地时才闪开、或墨粉喷出前一刻才格挡，打印机会在你脚下提前露出破绽（下一次卡纸随之跳过，所以只加快节奏、不增加总伤害）；按住 ↑ 可以重拽，伤害 +1，但按住时不能移动，弱点先缩回会被夹手。两场热身战保持不变。结算改为显示通关时间、被击中次数、个人最佳、用了几次进阶技巧，以及一条根据本局数据给出的改进建议；到达过 Boss 后可以直接进行 Boss 练习。加入实时合成的音效和声音开关。背景重新加入动效（秒针、热气、窗外灯光、截止日期圈，以及有 GPU 时的警报扫光和琥珀闪烁）。车道分隔线和小字对比度提高。第 3、4 条和可选高难度变体留待后续。是否解决问题，需要试玩 #6 验证。
+
+The boss fight gains two advanced techniques: step out of the lane just before the sheet lands, or raise the block just before the toner sprays, and the printer exposes an opening under you early (the next jam is skipped, so the pace speeds up but total damage stays the same); hold ↑ for a heavy pull worth +1 damage, but you can't move while holding and get pinched if the weak point retracts first. The two warm-up fights are unchanged. The results now show clear time, hits taken, the personal best, how often the advanced techniques were used, and one tip based on the run; once the boss has been reached, boss practice starts straight at the boss. Synthesised sound effects arrive with a sound toggle. The backdrop moves again (the second hand, steam, city windows, the deadline ring, and with a GPU the alarm sweep and amber flicker). Lane lines and small text have more contrast. Points 3 and 4 and an optional harder variant are left for later. Whether this works needs playtest #6.

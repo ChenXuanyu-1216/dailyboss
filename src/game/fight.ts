@@ -17,6 +17,13 @@
  * - reset (hold to channel): interrupts the "installing update" charge, which otherwise heals the
  *   printer; an interrupt stuns it and exposes a big weak point.
  * Blocking and channelling both root the player in place, so neither can be held "just in case".
+ *
+ * Mastery (iteration 5, opt-in per fight): a fight with `counter` rewards a *precise* defence -
+ * stepping out of a lane in the last moment before the sheet lands, or raising the block just
+ * before the toner fires - with a short counter opening in the player's own lane, so skilled play
+ * speeds the fight up. A fight with `heavyPull` lets the player hold pull: let go early for the
+ * safe pull, or keep holding for extra damage while rooted, and get pinched if the weak point
+ * retracts first.
  */
 
 export const LANE_COUNT = 3;
@@ -25,8 +32,8 @@ export type AbilityId = 'dodge' | 'block' | 'pull' | 'reset';
 export const ABILITY_IDS: readonly AbilityId[] = ['dodge', 'block', 'pull', 'reset'];
 
 /** What hit the player. The engine records it; the UI describes it. */
-export type AttackKind = 'paper' | 'toner';
-export const ATTACK_KINDS: readonly AttackKind[] = ['paper', 'toner'];
+export type AttackKind = 'paper' | 'toner' | 'pinch';
+export const ATTACK_KINDS: readonly AttackKind[] = ['paper', 'toner', 'pinch'];
 
 /** Discrete inputs, applied at the start of the step in which they arrive. */
 export type FightCommand = 'left' | 'right' | 'pull';
@@ -37,6 +44,12 @@ export interface FightInput {
   block: boolean;
   /** Reset key currently held (channelling). */
   reset: boolean;
+  /**
+   * Pull key currently held. Only matters in fights with `heavyPull`: a pull lands when the key
+   * is let go (or when the heavy pull completes). Omitted = released, so a bare `pull` command
+   * is a quick pull.
+   */
+  pull?: boolean;
 }
 
 export const NO_INPUT: FightInput = { commands: [], block: false, reset: false };
@@ -55,6 +68,10 @@ export const FIGHT_RULES = {
   recoverMs: 500,
   /** Internal step size; checks are evaluated at least this often regardless of frame rate. */
   substepMs: 10,
+  /** Holding pull this long turns it into a heavy pull (fights with `heavyPull`). */
+  heavyPullMs: 700,
+  /** Extra damage of a heavy pull. */
+  heavyBonus: 1,
 } as const;
 
 /** One shot of a paper move: aimed at the player's lane, or a pair (player's lane + one other). */
@@ -90,6 +107,14 @@ export interface FightDefinition {
   newAbilities: readonly AbilityId[];
   /** Weak point exposed after a reset interrupts a charge. */
   stun: { windowMs: number; damage: number };
+  /**
+   * Precise defence brings the next jam forward: a counter weak point opens at once in the
+   * player's lane, and the next scheduled jam is skipped. At most once per attack round (one pass
+   * through the stage's cycle), so the fight's damage is unchanged; only its pace speeds up. `perfectMs`: how close to the impact (dodge) or to the spray (block) counts as precise.
+   */
+  counter?: { perfectMs: number; windowMs: number; damage: number };
+  /** Pull can be held for a heavy pull (see FIGHT_RULES.heavyPullMs). */
+  heavyPull?: boolean;
   stages: readonly FightStage[];
   /** Fight-specific wording for the arena. */
   copy: {
@@ -113,10 +138,13 @@ export interface Paper {
   launchAt: number;
   /** Sheet reaches the player row; hits whoever is in the lane. */
   impactAt: number;
+  /** Attack round that fired it (counters are granted once per round). */
+  round: number;
 }
 
 interface PendingShot {
   at: number;
+  round: number;
   shot: Shot;
   telegraphMs: number;
   travelMs: number;
@@ -127,6 +155,7 @@ export interface Toner {
   activeAt: number;
   endAt: number;
   hit: boolean;
+  round: number;
 }
 
 export interface Exposure {
@@ -136,6 +165,13 @@ export interface Exposure {
   damage: number;
   /** Opened by an interrupt (bigger and longer) rather than a jam move. */
   stun: boolean;
+  /** Opened by a precise defence. */
+  counter?: boolean;
+}
+
+/** A held pull on the weak point in the player's lane. */
+export interface Grip {
+  from: number;
 }
 
 export interface Charge {
@@ -170,13 +206,27 @@ export interface FightState {
   hits: number;
   won: boolean;
   nextId: number;
+  /** When the player arrived in the current lane, and the lane they came from. */
+  laneSince: number;
+  prevLane: number;
+  /** When the current block started, or null when not blocking. */
+  blockFrom: number | null;
+  grip: Grip | null;
+  /** Attack rounds started so far: one per pass through the stage's cycle. */
+  round: number;
+  /** Last round that granted a counter. */
+  counterRound: number;
+  /** A counter already paid for the next jam: that jam is skipped (the opening came early). */
+  jamCredit: number;
 }
 
 export type FightEvent =
   | { type: 'hit'; attack: AttackKind }
   | { type: 'dodge' }
   | { type: 'block' }
-  | { type: 'damage'; amount: number; stun: boolean }
+  | { type: 'damage'; amount: number; stun: boolean; heavy?: true; counter?: true }
+  | { type: 'grip' }
+  | { type: 'perfect'; defense: 'dodge' | 'block'; opened: boolean }
   | { type: 'whiff' }
   | { type: 'interrupt' }
   | { type: 'reset-wasted' }
@@ -230,6 +280,13 @@ export function createFight(def: FightDefinition, seed: number): FightState {
     hits: 0,
     won: false,
     nextId: 1,
+    laneSince: 0,
+    prevLane: Math.floor(LANE_COUNT / 2),
+    blockFrom: null,
+    grip: null,
+    round: 0,
+    counterRound: 0,
+    jamCredit: 0,
   };
 }
 
@@ -241,6 +298,7 @@ function clone(s: FightState): FightState {
     toner: s.toner && { ...s.toner },
     exposure: s.exposure && { ...s.exposure },
     charge: s.charge && { ...s.charge },
+    grip: s.grip && { ...s.grip },
   };
 }
 
@@ -251,6 +309,12 @@ export function canUse(def: FightDefinition, ability: AbilityId): boolean {
 /** HP as a fraction of max, in [0, 1]. */
 export function fightHealth(def: FightDefinition, s: FightState): number {
   return Math.min(1, Math.max(0, s.hp / def.maxHp));
+}
+
+/** Heavy-pull progress in [0, 1], or null when not gripping. */
+export function gripProgress(s: FightState): number | null {
+  if (s.grip === null) return null;
+  return Math.min(1, (s.t - s.grip.from) / FIGHT_RULES.heavyPullMs);
 }
 
 /** Channel progress in [0, 1], or null when not channelling. */
@@ -273,22 +337,32 @@ export function stepFight(
   const events: FightEvent[] = [];
   if (s.won) return { state: s, events };
 
-  applyHeld(def, s, input);
+  applyHeld(def, s, input, events);
   for (const cmd of input.commands) applyCommand(def, s, cmd, events);
 
   let remaining = Math.max(0, dtMs);
   while (remaining > 0 && !s.won) {
     const dt = Math.min(FIGHT_RULES.substepMs, remaining);
     remaining -= dt;
-    applyHeld(def, s, input);
+    applyHeld(def, s, input, events);
+    if (s.won) break;
     substep(def, s, dt, events);
   }
   return { state: s, events };
 }
 
-function applyHeld(def: FightDefinition, s: FightState, input: FightInput): void {
-  s.blocking = canUse(def, 'block') && input.block;
-  if (s.blocking || !input.reset || !canUse(def, 'reset')) {
+function applyHeld(def: FightDefinition, s: FightState, input: FightInput, events: FightEvent[]): void {
+  if (s.won) return;
+  // A grip lands as a quick pull when the key is let go, or when block is raised instead.
+  if (s.grip && (!input.pull || (input.block && canUse(def, 'block')))) {
+    releaseGrip(def, s, false, events);
+    if (s.won) return;
+  }
+  const blocking = canUse(def, 'block') && input.block;
+  if (blocking && !s.blocking) s.blockFrom = s.t;
+  if (!blocking) s.blockFrom = null;
+  s.blocking = blocking;
+  if (s.blocking || s.grip || !input.reset || !canUse(def, 'reset')) {
     s.channelFrom = null;
   } else if (s.channelFrom === null && s.t >= s.resetReadyAt) {
     s.channelFrom = s.t;
@@ -296,24 +370,59 @@ function applyHeld(def: FightDefinition, s: FightState, input: FightInput): void
 }
 
 function rooted(s: FightState): boolean {
-  return s.blocking || s.channelFrom !== null;
+  return s.blocking || s.channelFrom !== null || s.grip !== null;
+}
+
+function exposedHere(s: FightState): Exposure | null {
+  const e = s.exposure;
+  return e && s.t >= e.from && s.t < e.until && e.lane === s.lane ? e : null;
+}
+
+/** Lands the pull on the exposed weak point (quick or heavy). */
+function landPull(def: FightDefinition, s: FightState, e: Exposure, heavy: boolean, events: FightEvent[]): void {
+  const amount = e.damage + (heavy ? FIGHT_RULES.heavyBonus : 0);
+  s.exposure = null;
+  s.grip = null;
+  s.hp = Math.max(0, s.hp - amount);
+  s.nextMoveAt = Math.min(s.nextMoveAt, s.t + FIGHT_RULES.recoverMs);
+  events.push({
+    type: 'damage',
+    amount,
+    stun: e.stun,
+    ...(heavy ? { heavy: true as const } : {}),
+    ...(e.counter ? { counter: true as const } : {}),
+  });
+  afterDamage(def, s, events);
+}
+
+function releaseGrip(def: FightDefinition, s: FightState, heavy: boolean, events: FightEvent[]): void {
+  const e = exposedHere(s);
+  s.grip = null;
+  if (e) landPull(def, s, e, heavy, events);
 }
 
 function applyCommand(def: FightDefinition, s: FightState, cmd: FightCommand, events: FightEvent[]): void {
   if (cmd === 'left' || cmd === 'right') {
     if (!canUse(def, 'dodge') || rooted(s)) return;
-    s.lane = Math.min(LANE_COUNT - 1, Math.max(0, s.lane + (cmd === 'left' ? -1 : 1)));
+    const lane = Math.min(LANE_COUNT - 1, Math.max(0, s.lane + (cmd === 'left' ? -1 : 1)));
+    if (lane !== s.lane) {
+      s.prevLane = s.lane;
+      s.laneSince = s.t;
+      s.lane = lane;
+    }
     return;
   }
   // pull
   if (!canUse(def, 'pull') || rooted(s) || s.t < s.pullReadyAt) return;
-  const e = s.exposure;
-  if (e && s.t >= e.from && s.t < e.until && e.lane === s.lane) {
-    s.exposure = null;
-    s.hp = Math.max(0, s.hp - e.damage);
-    s.nextMoveAt = Math.min(s.nextMoveAt, s.t + FIGHT_RULES.recoverMs);
-    events.push({ type: 'damage', amount: e.damage, stun: e.stun });
-    afterDamage(def, s, events);
+  const e = exposedHere(s);
+  if (e) {
+    if (def.heavyPull) {
+      // Held: lands on release (quick) or after heavyPullMs (heavy); see applyHeld and substep.
+      s.grip = { from: s.t };
+      events.push({ type: 'grip' });
+    } else {
+      landPull(def, s, e, false, events);
+    }
   } else {
     s.pullReadyAt = s.t + FIGHT_RULES.whiffLockMs;
     events.push({ type: 'whiff' });
@@ -330,6 +439,8 @@ function afterDamage(def: FightDefinition, s: FightState, events: FightEvent[]):
     s.charge = null;
     s.channelFrom = null;
     s.blocking = false;
+    s.blockFrom = null;
+    s.grip = null;
     events.push({ type: 'won' });
     return;
   }
@@ -350,9 +461,31 @@ function takeHit(s: FightState, attack: AttackKind, at: number, events: FightEve
   if (at < s.invulnerableUntil) return false;
   s.invulnerableUntil = at + FIGHT_RULES.invulnerableMs;
   s.channelFrom = null;
+  // A hit knocks the hand off the weak point (which stays out).
+  s.grip = null;
   s.hits += 1;
   events.push({ type: 'hit', attack });
   return true;
+}
+
+/** A precise defence: opens a counter weak point in the player's lane, once per attack round. */
+function precise(
+  def: FightDefinition,
+  s: FightState,
+  defense: 'dodge' | 'block',
+  round: number,
+  at: number,
+  events: FightEvent[],
+): void {
+  const c = def.counter;
+  if (!c) return;
+  const opened = s.counterRound !== round && s.exposure === null;
+  if (opened) {
+    s.counterRound = round;
+    s.jamCredit = 1;
+    s.exposure = { lane: s.lane, from: at, until: at + c.windowMs, damage: c.damage, stun: false, counter: true };
+  }
+  events.push({ type: 'perfect', defense, opened });
 }
 
 function substep(def: FightDefinition, s: FightState, dt: number, events: FightEvent[]): void {
@@ -367,7 +500,7 @@ function substep(def: FightDefinition, s: FightState, dt: number, events: FightE
       const lanes = p.shot === 'aimed' ? [s.lane] : [s.lane, randomLane(s, s.lane)];
       for (const lane of lanes) {
         const launchAt = p.at + p.telegraphMs;
-        s.papers.push({ id: s.nextId++, lane, spawnAt: p.at, launchAt, impactAt: launchAt + p.travelMs });
+        s.papers.push({ id: s.nextId++, lane, spawnAt: p.at, launchAt, impactAt: launchAt + p.travelMs, round: p.round });
       }
     }
   }
@@ -402,9 +535,17 @@ function substep(def: FightDefinition, s: FightState, dt: number, events: FightE
       s.papers = s.papers.filter((p) => p.impactAt > t1);
       // Both sheets of a paired shot land together and have one outcome.
       for (const impactAt of new Set(landing.map((paper) => paper.impactAt))) {
-        const struck = landing.some((paper) => paper.impactAt === impactAt && paper.lane === s.lane);
-        if (struck) takeHit(s, 'paper', impactAt, events);
-        else events.push({ type: 'dodge' });
+        const group = landing.filter((paper) => paper.impactAt === impactAt);
+        if (group.some((paper) => paper.lane === s.lane)) {
+          takeHit(s, 'paper', impactAt, events);
+          continue;
+        }
+        events.push({ type: 'dodge' });
+        // Precise: the player left a struck lane in the last moment before the sheet landed.
+        const c = def.counter;
+        if (c && s.laneSince >= impactAt - c.perfectMs && group.some((paper) => paper.lane === s.prevLane)) {
+          precise(def, s, 'dodge', group[0]!.round, impactAt, events);
+        }
       }
     }
   }
@@ -418,15 +559,42 @@ function substep(def: FightDefinition, s: FightState, dt: number, events: FightE
       tn.hit = true;
     }
     if (t1 >= tn.endAt) {
-      if (!tn.hit) events.push({ type: 'block' });
       s.toner = null;
+      if (!tn.hit) {
+        events.push({ type: 'block' });
+        // Precise: the block went up in the last moment before the spray.
+        const c = def.counter;
+        if (c && s.blockFrom !== null && s.blockFrom >= tn.activeAt - c.perfectMs) {
+          precise(def, s, 'block', tn.round, t1, events);
+        }
+      }
     }
   }
 
-  // 5. The weak point retracts.
+  // 5. A heavy pull completes; or the weak point retracts, pinching a hand still gripping it.
+  if (
+    s.grip &&
+    s.exposure &&
+    t1 - s.grip.from >= FIGHT_RULES.heavyPullMs &&
+    // Completion and retraction can share a substep. The opening ends exclusively, so
+    // an equal or earlier retraction must pinch instead of granting a late heavy pull.
+    s.grip.from + FIGHT_RULES.heavyPullMs < s.exposure.until
+  ) {
+    releaseGrip(def, s, true, events);
+    if (s.won) {
+      s.t = t1;
+      return;
+    }
+  }
   if (s.exposure && t1 >= s.exposure.until) {
     s.exposure = null;
-    events.push({ type: 'window-missed' });
+    if (s.grip) {
+      s.grip = null;
+      s.pullReadyAt = t1 + FIGHT_RULES.whiffLockMs;
+      takeHit(s, 'pinch', t1, events);
+    } else {
+      events.push({ type: 'window-missed' });
+    }
   }
 
   // 6. A charge that completes heals the printer, but never past the current stage's starting HP:
@@ -451,22 +619,30 @@ function currentStage(def: FightDefinition, s: FightState): FightStage {
 
 function startMove(def: FightDefinition, s: FightState): void {
   const stage = currentStage(def, s);
+  if (s.cycleIndex === 0) s.round += 1;
   const move = stage.cycle[s.cycleIndex % stage.cycle.length]!;
   s.cycleIndex = (s.cycleIndex + 1) % stage.cycle.length;
+  const round = s.round;
   const t = s.t;
   let duration = 0;
   switch (move.kind) {
     case 'paper':
       move.shots.forEach((shot, i) => {
-        s.pending.push({ at: t + i * move.intervalMs, shot, telegraphMs: move.telegraphMs, travelMs: move.travelMs });
+        s.pending.push({ at: t + i * move.intervalMs, round, shot, telegraphMs: move.telegraphMs, travelMs: move.travelMs });
       });
       duration = (move.shots.length - 1) * move.intervalMs + move.telegraphMs + move.travelMs;
       break;
     case 'toner':
-      s.toner = { warnAt: t, activeAt: t + move.telegraphMs, endAt: t + move.telegraphMs + move.activeMs, hit: false };
+      s.toner = { warnAt: t, activeAt: t + move.telegraphMs, endAt: t + move.telegraphMs + move.activeMs, hit: false, round };
       duration = move.telegraphMs + move.activeMs;
       break;
     case 'jam': {
+      if (s.jamCredit > 0) {
+        // Already opened early by a counter: move straight on.
+        s.jamCredit -= 1;
+        s.nextMoveAt = t;
+        return;
+      }
       const lane = move.lane === 'away' ? randomLane(s, s.lane) : randomLane(s);
       s.exposure = { lane, from: t, until: t + move.windowMs, damage: move.damage ?? 1, stun: false };
       duration = move.windowMs;

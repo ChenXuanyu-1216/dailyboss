@@ -310,6 +310,13 @@
   color: #14161f;
 }
 
+.title__best {
+  color: #ffd27a;
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+  text-align: center;
+}
+
 .title__hint {
   color: var(--t-ink-3);
   font-size: var(--fs-xs);

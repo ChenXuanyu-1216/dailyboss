@@ -10,7 +10,7 @@
   --c-sunken: #ebebe7;
   --c-ink: #1d1d1f;
   --c-ink-2: #55555a;
-  --c-ink-3: #85858b;
+  --c-ink-3: #6b6b70; /* 4.9:1 on white: small secondary labels stay readable */
   --c-line: #d9d9d4;
   --c-line-strong: #b9b9b3;
 
@@ -77,8 +77,8 @@
 
   /* real-time fight arena */
   --c-fight-bg: #221c1e;
-  --c-fight-lane: rgb(255 255 255 / 0.04);
-  --c-fight-line: rgb(255 255 255 / 0.12);
+  --c-fight-lane: rgb(255 255 255 / 0.05);
+  --c-fight-line: rgb(255 255 255 / 0.3);
   --c-fight-ink: #f4eeee;
   --c-fight-warn: #f5a524;
   --c-fight-warn-soft: rgb(245 165 36 / 0.22);

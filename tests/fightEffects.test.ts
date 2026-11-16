@@ -17,7 +17,7 @@ const kinds = (f: FightFx) => f.particles.map((p) => p.kind);
 
 /** A state with the toner spraying (active) at t = 1000. */
 function spraying(over: Partial<FightState> = {}): FightState {
-  return { ...createFight(def, 1), t: 1000, toner: { warnAt: 0, activeAt: 500, endAt: 2000, hit: false }, ...over };
+  return { ...createFight(def, 1), t: 1000, toner: { warnAt: 0, activeAt: 500, endAt: 2000, hit: false, round: 1 }, ...over };
 }
 
 describe('fight effects (presentation only)', () => {

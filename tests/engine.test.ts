@@ -46,6 +46,17 @@ describe('createInitialState', () => {
       outcome: null,
     });
   });
+
+  it('RESTART can start the new run in another phase (boss practice); unknown phases fall back', () => {
+    const mid = play(level, ['reconnect']);
+    expect(transition(level, mid, { type: 'RESTART', phaseId: 'jam' })).toMatchObject({
+      phaseId: 'jam',
+      patience: 3,
+      turns: [],
+    });
+    expect(transition(level, mid, { type: 'RESTART', phaseId: 'nope' }).phaseId).toBe('offline');
+    expect(transition(level, mid, { type: 'RESTART' }).phaseId).toBe('offline');
+  });
 });
 
 describe('outcomes', () => {

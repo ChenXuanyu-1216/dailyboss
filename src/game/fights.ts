@@ -74,6 +74,11 @@ const printerBoss: FightDefinition = {
   abilities: ['dodge', 'block', 'pull', 'reset'],
   newAbilities: [],
   stun: { windowMs: 1800, damage: 2 },
+  // Iteration 5 (mastery): a dodge or block in the last 220 ms opens a short counter in the
+  // player's lane, and pulls can be held for +1 damage at the risk of a pinch. The warm-ups keep
+  // neither, so they stay short lessons; a player who ignores both fights the boss as before.
+  counter: { perfectMs: 220, windowMs: 700, damage: 1 },
+  heavyPull: true,
   stages: [
     {
       title: '第一形态：盖板',
