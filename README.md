@@ -16,7 +16,7 @@ An open-source browser game that turns everyday frustrations into boss fights.
 
 ### 当前状态
 
-第一个可运行版本：首关「地狱打印机」可完整游玩，已部署到 GitHub Pages（<https://lachenxuanyu.com/dailyboss/>）。已有浏览器回归测试与 CI。试玩 #1 反馈「按完按钮什么都没发生」，迭代 1 因此加入了 3 回合 Boss 战；试玩 #2 反馈「不需要技巧，按空格填满进度条就能赢」，迭代 2 因此把三个阶段全部改成**实时战斗**：打印机有预警的攻击招式，玩家用四个技能（闪避、格挡、拽出、重启）分别应对（见下文与 [试玩记录](docs/PLAYTEST.md)）。迭代 2 还需要试玩 #3 验证。
+第一个可运行版本：首关「地狱打印机」可完整游玩，已部署到 GitHub Pages（<https://lachenxuanyu.com/dailyboss/>）。已有浏览器回归测试与 CI。试玩 #1 反馈「按完按钮什么都没发生」，迭代 1 因此加入了 3 回合 Boss 战；试玩 #2 反馈「不需要技巧，按空格填满进度条就能赢」，迭代 2 因此把三个阶段全部改成**实时战斗**：打印机有预警的攻击招式，玩家用四个技能（闪避、格挡、拽出、重启）分别应对（见下文与 [试玩记录](docs/PLAYTEST.md)）。当前迭代 5 已加入极限防御、重拽、个人最佳、Boss 练习和音效，仍需试玩 #6 验证重玩意愿与技巧发现。
 
 **已实现并验证**
 
@@ -35,9 +35,9 @@ An open-source browser game that turns everyday frustrations into boss fights.
 - 界面随故障逐步异变（警示色、扫描线、轻微扭曲），尊重「减少动态效果」设置。
 - Three.js／React Three Fiber 几何体打印机，按场景注册表加载；WebGL 不可用、上下文丢失或手动切换时使用简化显示，游戏照常可玩。
 - 生产构建使用 GitHub Pages 子路径 `/dailyboss/`。
-- Playwright 浏览器测试（65 项）针对 `/dailyboss/` 下的生产构建运行。页面内的脚本玩家只读取战斗区域渲染出的内容并按真实按键，在 Playwright 假时钟下逐帧打完整局。覆盖三种结局、各技能与暂停、触屏按钮、真实 WebGL、上下文丢失、无 WebGL、手机横竖屏视口与减少动态效果。
+- Playwright 浏览器测试（68 项）针对 `/dailyboss/` 下的生产构建运行。页面内的脚本玩家只读取战斗区域渲染出的内容并按真实按键，在 Playwright 假时钟下逐帧打完整局。覆盖三种结局、各技能与暂停、触屏按钮、真实 WebGL、上下文丢失、无 WebGL、手机横竖屏视口与减少动态效果。
 - 修复：手动切换「简化显示」时误报「3D 渲染中断」。
-- GitHub Pages 部署：`main` 上的 CI 与部署已在 GitHub 上成功运行（2026-11-10），当时全部 21 项浏览器测试在线上站点同样通过。迭代 2 尚未部署。
+- GitHub Pages 部署：迭代 5 与复审修复已随 [PR #9](https://github.com/ChenXuanyu-1216/dailyboss/pull/9) 合入 `main`；[CI 与 Pages 部署](https://github.com/ChenXuanyu-1216/dailyboss/actions/runs/43899974068) 于 2026-11-16 成功。该流程测试生产构建后发布同一份 `dist/`，不等同于线上浏览器回归测试。
 
 **尚未完成**：迭代 5 的试玩 #6、数值调整（2–4 分钟目标）、结局分享、真机（尤其触屏）测试、动画人工验收。详见 [开发路线](docs/ROADMAP.md)。
 
@@ -151,7 +151,7 @@ An absurd, browser-playable boss fight about everyday life. It starts as an ordi
 
 ### Status
 
-First runnable version. Level 1, "Printer From Hell" (地狱打印机), is fully playable and deployed to GitHub Pages at <https://lachenxuanyu.com/dailyboss/>. Browser regression tests and CI are in place. Playtest #1 found that "nothing happened" after the buttons were pressed, so Iteration 1 added a 3-round boss fight. Playtest #2 found that it took no skill: you could win by filling a meter with the spacebar. Iteration 2 therefore turns all three phases into **real-time fights**: the printer has telegraphed attacks, and the player answers each one with a specific ability (dodge, block, pull, reset). See below and the [playtest log](docs/PLAYTEST.md). Iteration 2 still needs playtest #3. The player-facing text is in Chinese.
+First runnable version. Level 1, "Printer From Hell" (地狱打印机), is fully playable and deployed to GitHub Pages at <https://lachenxuanyu.com/dailyboss/>. Browser regression tests and CI are in place. Playtest #1 found that "nothing happened" after the buttons were pressed, so Iteration 1 added a 3-round boss fight. Playtest #2 found that it took no skill: you could win by filling a meter with the spacebar. Iteration 2 therefore turns all three phases into **real-time fights**: the printer has telegraphed attacks, and the player answers each one with a specific ability (dodge, block, pull, reset). See below and the [playtest log](docs/PLAYTEST.md). The current Iteration 5 adds precise defence, heavy pulls, personal bests, boss practice and sound; playtest #6 still needs to validate replay interest and whether players discover the techniques. The player-facing text is in Chinese.
 
 **Implemented and verified**
 
@@ -178,12 +178,12 @@ First runnable version. Level 1, "Printer From Hell" (地狱打印机), is fully
 - The interface degrades step by step as faults escalate (warning colors, scanlines, slight distortion) and respects `prefers-reduced-motion`.
 - A primitive-geometry printer built with Three.js / React Three Fiber and loaded through a scene registry. A simplified DOM display takes over when WebGL is unavailable, when the context is lost, or when the player turns it on. The game stays fully playable either way.
 - Production builds use the GitHub Pages subpath `/dailyboss/`.
-- 65 Playwright browser tests run against the production build under `/dailyboss/`. An in-page scripted player reads only what the arena renders and presses real keys, playing whole runs frame by frame under Playwright's fake clock. They cover:
+- 68 Playwright browser tests run against the production build under `/dailyboss/`. An in-page scripted player reads only what the arena renders and presses real keys, playing whole runs frame by frame under Playwright's fake clock. They cover:
   - all three endings, every ability, pausing, and touch controls;
   - real WebGL, context loss and no WebGL;
   - mobile portrait and landscape viewports, and reduced motion.
 - Fixed: manually switching to the simplified display no longer reports a false "3D rendering interrupted" warning.
-- GitHub Pages deployment: CI and the deploy job ran successfully on `main` on GitHub (2026-11-10), and the 21 browser tests of that version also passed against the live site. Iteration 2 is not deployed yet.
+- GitHub Pages deployment: Iteration 5 and its review fixes merged into `main` through [PR #9](https://github.com/ChenXuanyu-1216/dailyboss/pull/9). [CI and the Pages deployment](https://github.com/ChenXuanyu-1216/dailyboss/actions/runs/43899974068) succeeded on 2026-11-16. The workflow tests the production build and publishes that same `dist/`; this is not a browser regression run against the live site.
 
 **Not done yet:**
 - playtest #6 of Iteration 5, and balance against the 2–4 minute target;
