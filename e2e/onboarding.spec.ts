@@ -82,10 +82,16 @@ test.describe('opening story', () => {
   });
 
   test('clicking the stage advances; Esc skips straight to the game', async ({ game, page }) => {
+    // Freeze typing before entering the story: a slow renderer can otherwise finish
+    // the first line before the first click and make two clicks advance two beats.
+    await page.clock.install({ time: CLOCK_START });
     await page.goto('./');
+    await page.clock.pauseAt(CLOCK_START + 60_000);
     await game.titleStart.click();
     await expect(game.intro.locator('.intro__dot').first()).toHaveAttribute('data-state', 'current');
     await game.intro.locator('.intro__stage').click(); // finish typing
+    await expect(game.intro.locator('.intro__text > span[aria-hidden]')).toHaveText(BEATS[0]!);
+    await expect(game.intro.locator('.intro__dot').first()).toHaveAttribute('data-state', 'current');
     await game.intro.locator('.intro__stage').click(); // next beat
     await expect(game.intro.locator('.intro__dot').nth(1)).toHaveAttribute('data-state', 'current');
     await expect(game.intro.locator('.intro__dot').first()).toHaveAttribute('data-state', 'done');
