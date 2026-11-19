@@ -54,12 +54,13 @@ function testArena(cycle: ArenaMove[], over: Partial<ArenaFightDefinition> = {})
   };
 }
 
-/** Steps `ms` of fight time in 16 ms frames, holding `move`; commands go into the first frame only. */
+/** Steps `ms` of fight time in frames, holding `move`; commands go into the first frame only. */
 function run(def: ArenaFightDefinition, s: ArenaState, ms: number, input: Partial<ArenaInput> = {}) {
   const events: ArenaEvent[] = [];
   let first = true;
   for (let t = 0; t < ms; t += FRAME_MS) {
-    const r = stepArena(def, s, { ...NO_ARENA_INPUT, ...input, commands: first ? (input.commands ?? []) : [] }, FRAME_MS);
+    const dt = Math.min(FRAME_MS, ms - t);
+    const r = stepArena(def, s, { ...NO_ARENA_INPUT, ...input, commands: first ? (input.commands ?? []) : [] }, dt);
     first = false;
     s = r.state;
     events.push(...r.events);
@@ -70,6 +71,16 @@ function run(def: ArenaFightDefinition, s: ArenaState, ms: number, input: Partia
 const at = (s: ArenaState, pos: Vec): ArenaState => ({ ...s, pos });
 
 describe('arena rules', () => {
+  it('hit circles graze the corners of strips and cones only when they overlap', () => {
+    const strip = { type: 'strip', o: { x: 0, y: 0 }, dir: 0, length: 5, width: 2 } as const;
+    expect(inShape(strip, { x: 5.1, y: 1.2 }, 0.3)).toBe(true);
+    expect(inShape(strip, { x: 5.25, y: 1.25 }, 0.3)).toBe(false);
+
+    const cone = { type: 'cone', o: { x: 0, y: 0 }, dir: -Math.PI / 4, half: Math.PI / 4, range: 4 } as const;
+    expect(inShape(cone, { x: 4.1, y: 0.2 }, 0.3)).toBe(true);
+    expect(inShape(cone, { x: 4.2, y: 0.25 }, 0.3)).toBe(false);
+  });
+
   it('is pure and deterministic: same seed and inputs give the same state', () => {
     const def = ARENA_FIGHTS['vending-boss']!;
     const a = runArena(def, 42, arenaSkilledPolicy(def, 350));
@@ -135,6 +146,24 @@ describe('arena rules', () => {
     expect(again.events.map((e) => e.type)).not.toContain('dash');
   });
 
+  it('walking resumes for the rest of a step when the dash expires', () => {
+    const def = testArena([WAIT]);
+    const move = { x: 1, y: 0 };
+    const start = stepArena(def, createArena(def, 1), { move, commands: ['dash'] }, 197).state;
+    const walked = stepArena(def, start, { move: { x: 0, y: -1 }, commands: [] }, 10).state;
+    expect(walked.pos.x).toBeCloseTo(3);
+    expect(walked.pos.y).toBeCloseTo(-2.0364, 6);
+  });
+
+  it('a strike can hit at the exact instant the dash expires', () => {
+    const def = testArena([{ kind: 'rattle', telegraphMs: 500, radius: 3.2 }, WAIT], {
+      floor: { halfW: 6, halfH: 2.4 },
+    });
+    const before = stepArena(def, createArena(def, 1), NO_ARENA_INPUT, 400).state;
+    const impact = stepArena(def, before, { move: { x: 0, y: -1 }, commands: ['dash'] }, 200);
+    expect(impact.events).toContainEqual({ type: 'hit', attack: 'rattle' });
+  });
+
   it('the armoured front makes hits bounce; from behind they land, then it spins round and braces', () => {
     const def = testArena([WAIT]);
     let s = createArena(def, 1); // player 2 units in front, boss facing them
@@ -176,6 +205,13 @@ describe('arena rules', () => {
     const inset = def.bossRadius + 2 * ARENA_RULES.playerRadius;
     expect(Math.abs(r.s.boss.x)).toBeLessThan(def.floor.halfW - inset);
     expect(Math.abs(r.s.boss.y)).toBeLessThan(def.floor.halfH - inset);
+  });
+
+  it('a hop hits before moving the player out of the landing spot', () => {
+    const def = testArena([{ kind: 'hop', telegraphMs: 500, radius: 1 }, WAIT]);
+    const impact = stepArena(def, createArena(def, 1), NO_ARENA_INPUT, 600);
+    expect(impact.events).toContainEqual({ type: 'hit', attack: 'hop' });
+    expect(dist(impact.state.pos, impact.state.boss)).toBeCloseTo(1.4);
   });
 
   it('a topple falls towards the player and leaves the boss down with its weak point out', () => {
@@ -228,6 +264,18 @@ describe('arena rules', () => {
     expect(run(def, plug.s, 3300).s.hp).toBe(7);
   });
 
+  it('a weak-point hit moves the player out of the boss as it stands up', () => {
+    const def = testArena([{ kind: 'maintenance', chargeMs: 3000, heal: 2 }, WAIT]);
+    const attack: ArenaInput = { ...NO_ARENA_INPUT, commands: ['attack'] };
+    const charged = stepArena(def, createArena(def, 1), NO_ARENA_INPUT, 100).state;
+    const unplugged = stepArena(def, at(charged, charged.charge!.socket), attack, 400).state;
+    const weak = unplugged.down!.weak;
+    const insideBoss = { x: weak.x / 2, y: weak.y / 2 };
+    const hit = stepArena(def, at(unplugged, insideBoss), attack, 0);
+    expect(hit.events).toContainEqual({ type: 'damage', amount: 3, weak: true });
+    expect(dist(hit.state.pos, hit.state.boss)).toBeCloseTo(1.4);
+  });
+
   it('a charge never draws from the socket nearest the player', () => {
     const def = testArena([{ kind: 'maintenance', chargeMs: 3000, heal: 1 }, WAIT]);
     for (let seed = 1; seed <= 10; seed++) {
@@ -260,6 +308,14 @@ describe('arena rules', () => {
     expect(win.types).toContain('won');
     expect(win.s.hazards).toEqual([]);
     expect(stepArena(def, win.s, { move: { x: 1, y: 0 }, commands: ['attack'] }, 500).events).toEqual([]);
+  });
+
+  it('the killing blow ends the fight before any later commands in the frame', () => {
+    const def = testArena([WAIT], { maxHp: 1 });
+    const start = at(createArena(def, 1), { x: 0, y: 1.6 });
+    const win = stepArena(def, start, { ...NO_ARENA_INPUT, commands: ['attack', 'dash'] }, 16);
+    expect(win.events.map((event) => event.type)).toEqual(['damage', 'won']);
+    expect(win.state.dashFrom).toBeNull();
   });
 });
 

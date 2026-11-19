@@ -113,6 +113,7 @@ export interface ArenaSkill {
 export function arenaSkilledPolicy(def: ArenaFightDefinition, reactionMs = 250, skill: ArenaSkill = {}): ArenaPolicy {
   const R = ARENA_RULES;
   const margin = R.hurtRadius + 0.3;
+  const tightMargin = R.hurtRadius + 0.05;
   const orbit = def.bossRadius + R.playerRadius + 0.35;
   return (s, mem) => {
     const t = s.t;
@@ -130,14 +131,14 @@ export function arenaSkilledPolicy(def: ArenaFightDefinition, reactionMs = 250, 
       if (d <= R.dashDistance) return (d / R.dashDistance) * R.dashMs;
       return R.dashMs + ((d - R.dashDistance) / R.speed) * 1000;
     };
-    const clearRoute = (p: Vec) => {
-      if (threats(p).length > 0) return false;
+    const clearRoute = (p: Vec, clearance = margin) => {
+      if (hazards.some((h) => inShape(h.shape, p, clearance))) return false;
       const d = dist(s.pos, p);
       for (let k = 1; k <= 6; k++) {
         const q = { x: s.pos.x + ((p.x - s.pos.x) * k) / 6, y: s.pos.y + ((p.y - s.pos.y) * k) / 6 };
         if (!s.down && dist(q, s.boss) < bodyR) return false;
         const arrive = t + travelMs((d * k) / 6);
-        if (hazards.some((h) => h.activeAt <= arrive + 60 && h.endAt > arrive && inShape(h.shape, q, margin))) {
+        if (hazards.some((h) => h.activeAt <= arrive + 60 && h.endAt > arrive && inShape(h.shape, q, clearance))) {
           return false;
         }
       }
@@ -150,13 +151,15 @@ export function arenaSkilledPolicy(def: ArenaFightDefinition, reactionMs = 250, 
     if (here.length > 0) {
       const kept = mem.escT === undefined ? null : { x: mem.escX!, y: mem.escY! };
       // Only inside the comfort margin, not the real hurt area: with no clean route, stay put.
-      const reallyIn = here.some((h) => inShape(h.shape, s.pos, R.hurtRadius + 0.05));
+      const reallyIn = here.some((h) => inShape(h.shape, s.pos, tightMargin));
+      // A new warning can cut off an old route. Try tighter clearance before risking a direct run.
       const safe =
-        kept && t - mem.escT! < 1500 && threats(kept).length === 0
+        kept && t - mem.escT! < 1500 && clearRoute(kept, tightMargin)
           ? kept
           : nearestSafe(def, s.pos, clearRoute) ??
             (reallyIn
-              ? nearestSafe(def, s.pos, (p) => threats(p).length === 0 && !(!s.down && dist(p, s.boss) < bodyR))
+              ? nearestSafe(def, s.pos, (p) => clearRoute(p, tightMargin)) ??
+                nearestSafe(def, s.pos, (p) => threats(p).length === 0 && !(!s.down && dist(p, s.boss) < bodyR))
               : null);
       if (!safe && !reallyIn) return { move: STILL, commands: [] };
       if (safe) {

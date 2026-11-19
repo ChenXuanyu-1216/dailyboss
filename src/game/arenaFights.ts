@@ -3,8 +3,8 @@ import type { ArenaFightDefinition, Vec } from './arena';
 /**
  * Registered open-arena fights (boss #2, the vending machine). Like fights.ts these are code, not
  * JSON: their numbers are tuned against the scripted players in tests/arena.test.ts, which check
- * that each fight is winnable without a hit at human reaction speed and that standing still,
- * mashing attack from the front, or never dodging lose.
+ * that each fight is winnable without a hit at human reaction speed. Standing still or mashing
+ * attack from the front loses every fight. Never dodging loses the boss fight.
  *
  * Not yet referenced by a level: the protocol change that lets a phase point at an arena fight
  * comes with the arena's presentation.

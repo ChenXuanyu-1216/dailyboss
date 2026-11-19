@@ -7,7 +7,7 @@
  * so the same state can be drawn top-down without WebGL.
  *
  * Like fight.ts it is pure and deterministic: `stepArena(def, state, input, dtMs)` returns the
- * next state and the events of the step, in fixed 10 ms substeps, with a seeded generator in the
+ * next state and the events of the step, in substeps of up to 10 ms, with a seeded generator in the
  * state. The rules engine only ever hears about its consequences (HIT per hit taken, FIGHT_WON).
  *
  * What the player can do:
@@ -19,9 +19,9 @@
  *   plug), only its exposed weak point takes damage: one big hit, and it gets up;
  * - dash (press): a short burst with brief invulnerability, on a cooldown.
  *
- * Every boss attack is a shape on the floor with a warning (telegraph) before it becomes active;
- * whoever stands in it while it is active is hit once. The shape is aimed when the warning starts
- * and never follows the player after that. Between attacks the boss turns towards the player
+ * Every damaging boss attack is a shape on the floor with a warning (telegraph) before it becomes
+ * active; whoever stands in it while it is active is hit once. The shape is aimed when the warning
+ * starts and never follows the player after that. Between attacks the boss turns towards the player
  * faster than they can circle it, so its back opens up mainly while it is committed to an attack.
  * It never ends up close enough to a wall to block the way round it.
  *
@@ -273,16 +273,20 @@ export function inShape(shape: Shape, p: Vec, margin = 0): boolean {
       if (d <= margin) return true;
       const off = Math.abs(angleDiff(angleTo(shape.o, p), shape.dir));
       if (off <= shape.half) return true;
-      // Beside the cone: distance from p to the nearer edge ray.
-      if (off - shape.half >= Math.PI / 2) return false;
-      return d * Math.sin(off - shape.half) < margin;
+      // Beside the cone, the nearest point is on the nearer edge segment.
+      const edgeAngle = off - shape.half;
+      if (edgeAngle >= Math.PI / 2) return false;
+      const pastEdge = Math.max(0, d * Math.cos(edgeAngle) - shape.range);
+      return Math.hypot(pastEdge, d * Math.sin(edgeAngle)) < margin;
     }
     case 'strip': {
       const dx = p.x - shape.o.x;
       const dy = p.y - shape.o.y;
       const u = dx * Math.cos(shape.dir) + dy * Math.sin(shape.dir);
       const v = -dx * Math.sin(shape.dir) + dy * Math.cos(shape.dir);
-      return u > -margin && u < shape.length + margin && Math.abs(v) < shape.width / 2 + margin;
+      const halfWidth = shape.width / 2;
+      if (u > 0 && u < shape.length && Math.abs(v) < halfWidth) return true;
+      return Math.hypot(Math.max(0, -u, u - shape.length), Math.max(0, Math.abs(v) - halfWidth)) < margin;
     }
   }
 }
@@ -393,11 +397,17 @@ export function stepArena(
   if (s.won) return { state: s, events };
 
   const move = canUseArena(def, 'move') ? clampLength(input.move) : { x: 0, y: 0 };
-  for (const cmd of input.commands) applyCommand(def, s, cmd, move, events);
+  for (const cmd of input.commands) {
+    applyCommand(def, s, cmd, move, events);
+    if (s.won) break;
+  }
 
   let remaining = Math.max(0, dtMs);
   while (remaining > 0 && !s.won) {
-    const dt = Math.min(ARENA_RULES.substepMs, remaining);
+    let dt = Math.min(ARENA_RULES.substepMs, remaining);
+    if (s.dashFrom !== null && isDashing(s)) {
+      dt = Math.min(dt, s.dashFrom + ARENA_RULES.dashMs - s.t);
+    }
     remaining -= dt;
     substep(def, s, move, dt, events);
   }
@@ -434,6 +444,7 @@ function applyCommand(def: ArenaFightDefinition, s: ArenaState, cmd: ArenaComman
       events.push({ type: 'up' });
       s.nextMoveAt = Math.min(s.nextMoveAt, s.t + ARENA_RULES.recoverMs);
       dealDamage(def, s, def.weakDamage, true, events);
+      if (!s.won) pushOutOfBoss(def, s);
     } else if (inReach(def, s)) {
       events.push({ type: 'clank' });
     } else {
@@ -510,8 +521,8 @@ function substep(def: ArenaFightDefinition, s: ArenaState, move: Vec, dt: number
 
   // 1. The player moves: a dash overrides walking. Walls and the standing boss block the way.
   let step: Vec;
-  if (s.dashFrom !== null && t0 < s.dashFrom + ARENA_RULES.dashMs) {
-    const d = (ARENA_RULES.dashDistance / ARENA_RULES.dashMs) * Math.min(dt, s.dashFrom + ARENA_RULES.dashMs - t0);
+  if (isDashing(s)) {
+    const d = (ARENA_RULES.dashDistance / ARENA_RULES.dashMs) * dt;
     step = { x: Math.cos(s.dashDir) * d, y: Math.sin(s.dashDir) * d };
   } else {
     s.dashFrom = null;
@@ -523,10 +534,12 @@ function substep(def: ArenaFightDefinition, s: ArenaState, move: Vec, dt: number
   pushOutOfBoss(def, s);
 
   // 2. Hazards: strikes take effect, the player is hit, finished ones clear.
+  // Check the player's position before a landing shoves them out of the way.
+  const impactPos = s.pos;
   for (const h of s.hazards) {
     if (t0 < h.activeAt && t1 >= h.activeAt) strike(def, s, h, events);
-    if (t1 > h.activeAt && t0 < h.endAt && !h.hit && inShape(h.shape, s.pos, ARENA_RULES.hurtRadius)) {
-      if (takeHit(s, h.kind, Math.max(t0, h.activeAt), events)) h.hit = true;
+    if (t1 >= h.activeAt && t1 < h.endAt && !h.hit && inShape(h.shape, impactPos, ARENA_RULES.hurtRadius)) {
+      if (takeHit(s, h.kind, t1, events)) h.hit = true;
     }
   }
   const done = s.hazards.filter((h) => t1 >= h.endAt);
@@ -578,6 +591,7 @@ function pushOutOfBoss(def: ArenaFightDefinition, s: ArenaState): void {
 function strike(def: ArenaFightDefinition, s: ArenaState, h: Hazard, events: ArenaEvent[]): void {
   if (h.kind === 'hop' && h.landAt) {
     s.boss = { ...h.landAt };
+    pushOutOfBoss(def, s);
   } else if (h.kind === 'topple' && h.shape.type === 'strip') {
     const { o, dir, length } = h.shape;
     // It lies along the strip: its middle is the new position, the bottle sits near the top end.
