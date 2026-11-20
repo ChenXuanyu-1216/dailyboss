@@ -7,6 +7,7 @@ import type { SceneCatalog } from '../game/contracts';
  */
 export const SCENE_CATALOG = {
   printer: { cues: ['offline', 'queue', 'jam'] },
+  vending: { cues: ['pay', 'change', 'boss'] },
 } as const satisfies SceneCatalog;
 
 export type SceneId = keyof typeof SCENE_CATALOG;

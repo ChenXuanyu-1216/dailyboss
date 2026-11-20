@@ -1,6 +1,5 @@
-import type { GameState, LevelDefinition } from '../game/contracts';
+import type { GameState, HitKind, LevelDefinition } from '../game/contracts';
 import { findAction, findPhase, resolveBranch } from '../game/engine';
-import type { AttackKind } from '../game/fight';
 import { UI } from './copy';
 
 export type FeedbackTone = 'neutral' | 'progress' | 'hurt' | 'success' | 'failure';
@@ -56,7 +55,7 @@ function describeFightTurn(level: LevelDefinition, state: GameState): Feedback |
   if (!from?.fight) return null;
 
   if (turn.fight === 'hit') {
-    const did = UI.hitFeedback[turn.actionId as AttackKind] ?? '你被击中了。';
+    const did = UI.hitFeedback[turn.actionId as HitKind] ?? '你被击中了。';
     const cost = `耐心 −${turn.patienceCost}，剩余 ${turn.patienceAfter}。`;
     if (state.outcome === 'failure') return { text: `${did}${cost}${level.endings.failure.title}。`, tone: 'failure' };
     return { text: `${did}${cost}`, tone: 'hurt' };

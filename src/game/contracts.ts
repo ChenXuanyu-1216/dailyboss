@@ -10,8 +10,11 @@
  *       actions. Hits taken in the fight cost patience; winning it follows `fight.target`.
  * v0.4: additive — an optional level `intro`: a tagline for the title screen and a few story
  *       beats played before the first phase. No effect on rules.
+ * Boss #2: a phase's `fight.id` may also name an open-arena fight (src/game/arena.ts). Same shape
+ *       and the same engine events, no new fields, so no new version.
  */
 
+import type { ArenaAttack } from './arena';
 import type { AttackKind } from './fight';
 
 /** Oldest first: a field introduced in one version is allowed in every later one. */
@@ -67,6 +70,9 @@ export interface FightRef {
   /** Shown after the fight is won. */
   feedback?: string;
 }
+
+/** What can hit the player: a lane-fight attack (fight.ts) or an arena hazard (arena.ts). */
+export type HitKind = AttackKind | ArenaAttack;
 
 /** Patience lost per hit taken in a fight. */
 export const FIGHT_HIT_COST = 1;
@@ -167,7 +173,7 @@ export type SceneCatalog = Readonly<Record<string, { readonly cues: readonly str
 export type GameEvent =
   | { type: 'ACT'; actionId: string; skill?: SkillResult }
   /** v0.3: the player took a hit in the current fight phase. */
-  | { type: 'HIT'; attack: AttackKind }
+  | { type: 'HIT'; attack: HitKind }
   /** v0.3: the player won the current fight phase. */
   | { type: 'FIGHT_WON' }
   /** `phaseId`: start the new run in that phase instead (boss practice). */

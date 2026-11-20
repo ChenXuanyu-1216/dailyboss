@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import type { ArenaEvent, ArenaState } from '../game/arena';
 import type { FightEvent, FightState } from '../game/fight';
 
 /**
@@ -73,6 +74,54 @@ export function soundsFor(before: FightState, after: FightState, events: readonl
         break;
       case 'perfect':
         if (e.opened) out.push('perfect');
+        break;
+      case 'stage':
+        out.push('stage');
+        break;
+      case 'won':
+        out.push('won');
+        break;
+      default:
+        break;
+    }
+  }
+  return out;
+}
+
+/** The arena counterpart of `soundsFor` (open-arena fights reuse the same synthesised sounds). */
+export function arenaSoundsFor(before: ArenaState, after: ArenaState, events: readonly ArenaEvent[]): SoundId[] {
+  const out: SoundId[] = [];
+  if (after.nextId > before.nextId) out.push('telegraph');
+  for (const h of after.hazards) {
+    if (before.t < h.activeAt && after.t >= h.activeAt) out.push(h.kind === 'soda' ? 'toner-spray' : 'launch');
+  }
+  if (after.charge && after.charge.from !== before.charge?.from) out.push('charge');
+  for (const e of events) {
+    switch (e.type) {
+      case 'hit':
+        out.push(e.attack === 'soda' ? 'hit-toner' : 'hit-paper');
+        break;
+      case 'evade':
+      case 'dash':
+        out.push('dodge');
+        break;
+      case 'clank':
+        out.push('block');
+        break;
+      case 'damage':
+        out.push(e.weak ? 'pull-heavy' : 'pull');
+        break;
+      case 'whiff':
+        out.push('whiff');
+        break;
+      case 'down':
+        out.push('weak');
+        break;
+      case 'interrupt':
+        out.push('interrupt');
+        break;
+      case 'heal':
+        if (e.amount > 0) out.push('heal');
         break;
       case 'stage':
         out.push('stage');

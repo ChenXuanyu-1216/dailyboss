@@ -20,7 +20,9 @@ React 派发用户事件；界面与场景消费同一份状态。动画完成�
 
 迭代 5 的进阶技巧也只在模拟里：战斗可选 `counter`（极限闪避／格挡提前露出破绽、跳过下一次卡纸，每轮一次）与 `heavyPull`（提前松手时普通拽出生效，持续按住 `FIGHT_RULES.heavyPullMs` 后自动完成重拽；弱点先缩回或恰在蓄力完成时缩回，则记一次 `pinch` 命中）。输入多了一个可选的 `pull`（拽出键是否按住）；不传时拽出命令仍是立即的普通拽出。结算统计、个人记录与音效都只读取每帧的战斗事件（`FightArena` 的 `onFrame`），不反馈给规则。
 
-第二个 Boss（售货机）用开放场地战斗：`src/game/arena.ts` 的 `stepArena(def, state, input, dtMs)` 与 `fight.ts` 同样是纯函数、10 ms 子步、带种子的随机数，但玩家在一块 2D 地面（x 横向、y 远离镜头）上自由移动，而不是在三条通道之间切换。3D 场景只负责画出这块地面，同一份状态也能画成俯视的 2D 画面（无 WebGL 时使用）。输入是持续的移动向量加上 `attack`／`dash` 两个按键；Boss 的每个招式都是地面上先预警、后生效的形状，预警开始时瞄准、之后不再跟随。它对规则引擎的接口与通道战斗相同：每次被击中一个 `HIT`，打赢时一个 `FIGHT_WON`。关卡引用开放场地战斗的协议改动、界面与 3D 场景尚未实现（见 ROADMAP 迭代 6）。
+第二个 Boss（售货机）用开放场地战斗：`src/game/arena.ts` 的 `stepArena(def, state, input, dtMs)` 与 `fight.ts` 同样是纯函数、10 ms 子步、带种子的随机数，但玩家在一块 2D 地面（x 横向、y 远离镜头）上自由移动，而不是在三条通道之间切换。3D 场景只负责画出这块地面，同一份状态也能画成俯视的 2D 画面（无 WebGL 时使用）。输入是持续的移动向量加上 `attack`／`dash` 两个按键；Boss 的每个招式都是地面上先预警、后生效的形状，预警开始时瞄准、之后不再跟随。它对规则引擎的接口与通道战斗相同：每次被击中一个 `HIT`，打赢时一个 `FIGHT_WON`。
+
+关卡阶段的 `fight.id` 可以引用两种战斗中的任何一种（`src/game/fightCatalog.ts` 合并两份登记表，ID 全局唯一，ID 本身就决定由哪种模拟运行），不需要新的协议版本；`HIT` 的命中种类 `HitKind` 是通道招式与场地招式的并集。`GameShell` 按 ID 挂载 `FightArena` 或 `ArenaFight`；`ArenaFight` 拥有场地战斗的时钟与键盘输入，用 `src/ui/arenaDraw.ts` 把状态画成俯视 2D 画面（3D 跟随镜头场景尚未实现）。设备名称、结局状态与「出货／打印」字样按场景取自 `sceneCopy(sceneId)`。
 
 ## 目标文件与职责
 
@@ -42,7 +44,10 @@ React 派发用户事件；界面与场景消费同一份状态。动画完成�
 | src/game/fight.ts | 实时战斗的纯函数模拟（v0.3）：招式、技能、命中与胜负 |
 | src/game/fights.ts | 已登记的战斗（招式编排与数值），供关卡 `fight.id` 引用与校验 |
 | src/game/arena.ts | 开放场地战斗的纯函数模拟（第二个 Boss）：2D 地面上的自由移动、攻击与冲刺，地面预警形状（圆、扇形、长条），倒地弱点与拔电源 |
-| src/game/arenaFights.ts | 已登记的开放场地战斗（售货机的两场热身战与 Boss 战）；尚未被关卡引用 |
+| src/game/arenaFights.ts | 已登记的开放场地战斗（售货机的两场热身战与 Boss 战） |
+| src/game/fightCatalog.ts | 两种战斗的合并 ID 表（供校验）与 `fightKind(id)` |
+| src/ui/ArenaFight.tsx | 开放场地战斗界面：时钟、键盘输入（WASD／方向键、J、K／空格、Esc）、读屏播报与音效，向上报告被击中与胜利 |
+| src/ui/arenaDraw.ts | 场地战斗的俯视 2D 画面（canvas，纯绘制函数）：地面、插座、预警形状、Boss 朝向与弱点、玩家 |
 | src/ui/FightArena.tsx | 战斗区域：时钟、键盘与触屏输入、渲染，向上报告被击中与胜利 |
 | src/ui/fightEffects.ts | 战斗粒子特效（墨粉云、墨渍、碎纸、火花、伤害数字）：只读取战斗状态与事件，不影响规则 |
 | src/ui/FightFxLayer.tsx | 特效 canvas 层：自有动画循环、尺寸适配、按绘制耗时自动降低粒子数量；减少动态效果或 `?fx=0` 时不挂载 |
@@ -58,6 +63,7 @@ React 派发用户事件；界面与场景消费同一份状态。动画完成�
 | src/scenes/SceneHost.tsx | 3D／简化显示切换、错误边界、上下文丢失处理 |
 | src/scenes/SceneCanvas.tsx | 共享 Canvas 设置（像素比上限、按需渲染） |
 | src/scenes/PrinterScene.tsx | 打印机模型与演出 |
+| src/scenes/VendingScene.tsx | 售货机模型与演出（战斗旁的立绘；战斗本身由场地画面绘制） |
 | src/scenes/FallbackScene.tsx | WebGL 不可用时的简化显示 |
 | content/levels/*.json | 阶段、行动、数值和文案 |
 | src/styles/tokens.css | 颜色、间距、字体、边框与动效变量 |
@@ -99,7 +105,7 @@ React 派发用户事件；界面与场景消费同一份状态。动画完成�
 
 `schemaVersion` 可为 `"0.3"`。v0.3 文件可以使用全部 v0.2 字段，另外：
 
-- Phase `fight`：`{ id, target, feedback? }`。`id` 必须是 `src/game/fights.ts` 中已登记的战斗（否则 `unknown-fight`）；`target` 是打赢后的去向（phase 或 resolve），参与引用、可达性与陷阱检查；`feedback` 是打赢后的文案。
+- Phase `fight`：`{ id, target, feedback? }`。`id` 必须是 `src/game/fights.ts`（通道战斗）或 `src/game/arenaFights.ts`（开放场地战斗）中已登记的战斗（否则 `unknown-fight`）；`target` 是打赢后的去向（phase 或 resolve），参与引用、可达性与陷阱检查；`feedback` 是打赢后的文案。
 - 战斗阶段不写 `actions`（同时出现时报错）；校验结果中它的 `actions` 为空数组。非战斗阶段仍必须有非空的 `actions`。
 - `fight` 出现在 v0.1／v0.2 文件中按未知字段拒绝。
 
