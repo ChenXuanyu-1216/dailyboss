@@ -1,8 +1,9 @@
-import { Component, Suspense, useCallback, useState, type ReactNode } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import type { SceneProps } from '../game/contracts';
 import { sceneCopy } from '../ui/copy';
 import { FallbackScene } from './FallbackScene';
 import { getSceneComponent } from './registry';
+import { SceneErrorBoundary } from './SceneErrorBoundary';
 import { detectWebGL, initialRenderMode, probeWebGL, type RenderMode } from './webgl';
 
 type Failure = 'unsupported' | 'lost' | 'error' | null;
@@ -13,27 +14,19 @@ const FAILURE_NOTE: Record<Exclude<Failure, null>, string> = {
   error: '3D 场景加载失败，已切换为简化显示。',
 };
 
-class SceneErrorBoundary extends Component<{ onError: () => void; fallback: ReactNode; children: ReactNode }> {
-  override state = { failed: false };
-  static getDerivedStateFromError() {
-    return { failed: true };
-  }
-  override componentDidCatch() {
-    this.props.onError();
-  }
-  override render() {
-    return this.state.failed ? this.props.fallback : this.props.children;
-  }
-}
-
 interface Props {
   sceneId: string;
   sceneProps: SceneProps;
   statusText: string;
+  /**
+   * Whether WebGL is wanted and working (3D mode chosen, supported, never lost). The arena fight
+   * follows it, so one "简化显示" toggle governs every 3D view on the page.
+   */
+  onRender3DChange?: (on3D: boolean) => void;
 }
 
 /** Chooses between the registered 3D scene and the simplified display. Owns no game rules. */
-export function SceneHost({ sceneId, sceneProps, statusText }: Props) {
+export function SceneHost({ sceneId, sceneProps, statusText, onRender3DChange }: Props) {
   const [mode, setMode] = useState<RenderMode>(initialRenderMode);
   const [failure, setFailure] = useState<Failure>(() => (probeWebGL().webgl ? null : 'unsupported'));
   const [attempt, setAttempt] = useState(0);
@@ -42,6 +35,8 @@ export function SceneHost({ sceneId, sceneProps, statusText }: Props) {
 
   const Scene = getSceneComponent(sceneId);
   const use3D = mode === '3d' && failure === null && Scene !== undefined;
+  const webglOn = mode === '3d' && failure === null;
+  useEffect(() => onRender3DChange?.(webglOn), [webglOn, onRender3DChange]);
   const fallback = (
     <FallbackScene {...sceneProps} statusText={statusText} sceneId={sceneId} label={sceneCopy(sceneId).fallback} />
   );

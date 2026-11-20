@@ -1,7 +1,17 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type MouseEvent,
+  type PointerEvent,
+} from 'react';
 import { flushSync } from 'react-dom';
 import {
   ARENA_ABILITY_IDS,
+  ARENA_RULES,
   arenaHealth,
   canUseArena,
   createArena,
@@ -11,8 +21,11 @@ import {
   type ArenaEvent,
   type ArenaFightDefinition,
   type ArenaState,
+  type Vec,
 } from '../game/arena';
+import { SceneErrorBoundary } from '../scenes/SceneErrorBoundary';
 import { drawArena } from './arenaDraw';
+import { keysVector, knobOffset, stickVector } from './arenaInput';
 import { arenaSoundsFor, sfx } from './audio';
 import { UI } from './copy';
 import { ASSIST_SPEED } from './FightArena';
@@ -24,11 +37,18 @@ const MAX_FRAME_MS = 100;
 const CALL_MS = 900;
 /** The winning blow lands, the arena celebrates, then the game moves on. */
 const VICTORY_MS = 1100;
+/** How far (px) the thumb travels from the stick's centre for full speed. */
+const STICK_RADIUS = 44;
+
+/** The 3D view of the floor; lazy, so Three.js stays out of the main bundle. */
+const ArenaScene3D = lazy(() => import('../scenes/ArenaScene3D'));
 
 interface Props {
   fight: ArenaFightDefinition;
   seed: number;
   assist: boolean;
+  /** Draw the floor in 3D (WebGL wanted and working); otherwise, or if 3D fails, top-down 2D. */
+  render3D?: boolean;
   /** The boss fight shows its HP on the boss bar, so the arena hides its own progress. */
   isBoss: boolean;
   onHit: (attack: ArenaAttack) => void;
@@ -118,20 +138,26 @@ function tacticalCue(before: ArenaState, after: ArenaState, fight: ArenaFightDef
  * scaled in assist mode) and the keyboard; the rules live in src/game/arena.ts. Reports hits,
  * the win and HP changes up, exactly like FightArena does for lane fights.
  */
-export function ArenaFight({ fight, seed, assist, isBoss, onHit, onWon, onHealth, onFrame }: Props) {
+export function ArenaFight({ fight, seed, assist, render3D = false, isBoss, onHit, onWon, onHealth, onFrame }: Props) {
   const [view, setView] = useState<ArenaState>(() => createArena(fight, seed));
   const [started, setStarted] = useState(false);
   const [paused, setPaused] = useState(false);
   const [cue, setCue] = useState({ text: '', sequence: 0 });
   const [call, setCall] = useState<{ text: string; tone: string; at: number; announce: boolean } | null>(null);
   const reducedMotion = usePrefersReducedMotion();
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [canvas, setCanvas] = useState<HTMLCanvasElement | null>(null);
+  const [failed3D, setFailed3D] = useState(false);
+  const on3DFailed = useCallback(() => setFailed3D(true), []);
+  const use3D = render3D && !failed3D;
   const winTimer = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(winTimer.current), []);
 
   const stateRef = useRef(view);
   const commands = useRef<ArenaCommand[]>([]);
   const held = useRef<Record<Dir, Set<string>>>({ up: new Set(), down: new Set(), left: new Set(), right: new Set() });
+  /** The touch stick's vector while a pointer holds it (it overrides the keys). */
+  const stick = useRef<{ pointer: number; move: Vec } | null>(null);
+  const knobRef = useRef<HTMLSpanElement>(null);
   const lastFrame = useRef<number | null>(null);
   const reported = useRef(false);
   const rootRef = useRef<HTMLElement>(null);
@@ -146,6 +172,8 @@ export function ArenaFight({ fight, seed, assist, isBoss, onHit, onWon, onHealth
 
   const releaseAll = useCallback(() => {
     for (const set of Object.values(held.current)) set.clear();
+    stick.current = null;
+    if (knobRef.current) knobRef.current.style.transform = '';
     commands.current = [];
   }, []);
 
@@ -183,7 +211,6 @@ export function ArenaFight({ fight, seed, assist, isBoss, onHit, onWon, onHealth
   // Draw whenever the state (or the canvas size) changes.
   const draw = useCallback(
     (s: ArenaState) => {
-      const canvas = canvasRef.current;
       const ctx = canvas?.getContext('2d');
       if (!canvas || !ctx) return;
       const dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -195,16 +222,15 @@ export function ArenaFight({ fight, seed, assist, isBoss, onHit, onWon, onHealth
       }
       drawArena(ctx, fight, s, { width: w, height: h, motion: !reducedMotion });
     },
-    [fight, reducedMotion],
+    [fight, reducedMotion, canvas],
   );
   useEffect(() => draw(view), [draw, view]);
   useEffect(() => {
-    const canvas = canvasRef.current;
     if (!canvas || typeof ResizeObserver === 'undefined') return;
     const ro = new ResizeObserver(() => draw(stateRef.current));
     ro.observe(canvas);
     return () => ro.disconnect();
-  }, [draw]);
+  }, [draw, canvas]);
 
   // The frame loop.
   useEffect(() => {
@@ -216,10 +242,9 @@ export function ArenaFight({ fight, seed, assist, isBoss, onHit, onWon, onHealth
       if (prev !== null) {
         const dt = Math.min(MAX_FRAME_MS, Math.max(0, now - prev)) * (assistRef.current ? ASSIST_SPEED : 1);
         const h = held.current;
-        const move = {
-          x: (h.right.size > 0 ? 1 : 0) - (h.left.size > 0 ? 1 : 0),
-          y: (h.up.size > 0 ? 1 : 0) - (h.down.size > 0 ? 1 : 0),
-        };
+        const move =
+          stick.current?.move ??
+          keysVector({ up: h.up.size > 0, down: h.down.size > 0, left: h.left.size > 0, right: h.right.size > 0 });
         const input = { move, commands: commands.current };
         commands.current = [];
         const before = stateRef.current;
@@ -288,6 +313,45 @@ export function ArenaFight({ fight, seed, assist, isBoss, onHit, onWon, onHealth
     };
   }, [started, paused, view.won, pause, resume]);
 
+  // Touch / mouse controls. The stick reads the pointer's offset from its centre while held;
+  // the buttons act on press. A keyboard "click" (detail 0) on a focused button also works.
+  const stickAt = (e: PointerEvent<HTMLElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const dx = e.clientX - (rect.left + rect.width / 2);
+    const dy = e.clientY - (rect.top + rect.height / 2);
+    stick.current = { pointer: e.pointerId, move: stickVector(dx, dy, STICK_RADIUS) };
+    const k = knobOffset(dx, dy, STICK_RADIUS);
+    if (knobRef.current) knobRef.current.style.transform = `translate(${k.x}px, ${k.y}px)`;
+  };
+  const stickRelease = (e: PointerEvent<HTMLElement>) => {
+    if (stick.current?.pointer !== e.pointerId) return;
+    stick.current = null;
+    if (knobRef.current) knobRef.current.style.transform = '';
+  };
+  const stickHandlers = {
+    onPointerDown: (e: PointerEvent<HTMLElement>) => {
+      e.preventDefault();
+      if (!running || (stick.current && stick.current.pointer !== e.pointerId)) return;
+      e.currentTarget.setPointerCapture?.(e.pointerId);
+      stickAt(e);
+    },
+    onPointerMove: (e: PointerEvent<HTMLElement>) => {
+      if (running && stick.current?.pointer === e.pointerId) stickAt(e);
+    },
+    onPointerUp: stickRelease,
+    onPointerCancel: stickRelease,
+    onLostPointerCapture: stickRelease,
+  };
+  const tap = (command: ArenaCommand) => ({
+    onPointerDown: (e: PointerEvent<HTMLButtonElement>) => {
+      e.preventDefault();
+      if (running) commands.current.push(command);
+    },
+    onClick: (e: MouseEvent<HTMLButtonElement>) => {
+      if (e.detail === 0 && running) commands.current.push(command);
+    },
+  });
+
   const s = view;
   const t = s.t;
   const stage = fight.stages[s.stage];
@@ -297,6 +361,10 @@ export function ArenaFight({ fight, seed, assist, isBoss, onHit, onWon, onHealth
   const fresh = abilities.filter((a) => fight.newAbilities.includes(a));
   const known = abilities.filter((a) => !fight.newAbilities.includes(a));
   const ratio = `${fight.floor.halfW * 2} / ${fight.floor.halfH * 2}`;
+  const hurt = s.hits > 0 && t < s.invulnerableUntil - ARENA_RULES.invulnerableMs + 250;
+  const flat = (
+    <canvas ref={setCanvas} className="arena__canvas" role="img" aria-label={UI.arenaFloor} data-testid="arena-canvas" />
+  );
 
   return (
     <section
@@ -315,6 +383,7 @@ export function ArenaFight({ fight, seed, assist, isBoss, onHit, onWon, onHealth
       data-hits={s.hits}
       data-hp={s.hp}
       data-won={s.won || undefined}
+      data-view={use3D ? '3d' : '2d'}
     >
       <header className="fight__head">
         <h2 id="fight-heading" className="panel__label">
@@ -350,8 +419,18 @@ export function ArenaFight({ fight, seed, assist, isBoss, onHit, onWon, onHealth
         )}
       </header>
 
-      <div className="fight__arena arena__floor" style={{ aspectRatio: ratio }}>
-        <canvas ref={canvasRef} className="arena__canvas" role="img" aria-label={UI.arenaFloor} data-testid="arena-canvas" />
+      <div className="fight__arena arena__floor" style={{ aspectRatio: ratio }} data-hurt={hurt || undefined}>
+        {use3D ? (
+          <SceneErrorBoundary onError={on3DFailed} fallback={flat}>
+            <Suspense fallback={flat}>
+              <div className="arena__canvas" role="img" aria-label={UI.arenaFloor} data-testid="arena-3d">
+                <ArenaScene3D def={fight} state={s} reducedMotion={reducedMotion} onContextLost={on3DFailed} />
+              </div>
+            </Suspense>
+          </SceneErrorBoundary>
+        ) : (
+          flat
+        )}
 
         {s.charge && (
           <div className="fight__charge arena__charge">
@@ -426,6 +505,42 @@ export function ArenaFight({ fight, seed, assist, isBoss, onHit, onWon, onHealth
             </button>
           </div>
         )}
+      </div>
+
+      <div className="arena__controls" role="group" aria-label={UI.arenaControls}>
+        <div className="arena__stick" data-testid="arena-stick" role="img" aria-label={UI.arenaStick} {...stickHandlers}>
+          <span ref={knobRef} className="arena__knob" aria-hidden="true" />
+        </div>
+        <div className="arena__buttons">
+          {canUseArena(fight, 'dash') && (
+            <button
+              type="button"
+              className="btn fight__ctl arena__btn"
+              data-ability="dash"
+              data-ready={t >= s.dashReadyAt || undefined}
+              aria-keyshortcuts="K Space"
+              {...tap('dash')}
+            >
+              <span className="fight__ctl-icon" aria-hidden="true">
+                »
+              </span>
+              <span className="fight__ctl-name">{UI.arenaAbility.dash}</span>
+            </button>
+          )}
+          <button
+            type="button"
+            className="btn fight__ctl arena__btn arena__btn--attack"
+            data-ability="attack"
+            data-ready={t >= s.attackReadyAt || undefined}
+            aria-keyshortcuts="J"
+            {...tap('attack')}
+          >
+            <span className="fight__ctl-icon" aria-hidden="true">
+              ✊
+            </span>
+            <span className="fight__ctl-name">{UI.arenaAbility.attack}</span>
+          </button>
+        </div>
       </div>
 
       <p className="fight__call" data-tone={callFresh ? call?.tone : undefined} data-testid="fight-call">

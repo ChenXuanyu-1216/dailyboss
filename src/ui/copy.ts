@@ -127,7 +127,9 @@ export const UI = {
   } satisfies Record<HitKind, string>,
   // Open-arena fights (boss #2)
   arenaKeyboardHint: '键位：WASD/方向键 移动 · J 攻击 · K/空格 冲刺 · Esc 暂停 · R 重开',
-  arenaFloor: '场地（俯视）',
+  arenaFloor: '战斗场地',
+  arenaControls: '移动与技能',
+  arenaStick: '移动摇杆：按住后朝想走的方向拖动',
   arenaWarn: {
     coins: '硬币预警：离开扇形区域',
     soda: '汽水预警：离开圆圈',

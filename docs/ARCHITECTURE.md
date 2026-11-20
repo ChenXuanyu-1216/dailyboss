@@ -22,7 +22,7 @@ React 派发用户事件；界面与场景消费同一份状态。动画完成�
 
 第二个 Boss（售货机）用开放场地战斗：`src/game/arena.ts` 的 `stepArena(def, state, input, dtMs)` 与 `fight.ts` 同样是纯函数、10 ms 子步、带种子的随机数，但玩家在一块 2D 地面（x 横向、y 远离镜头）上自由移动，而不是在三条通道之间切换。3D 场景只负责画出这块地面，同一份状态也能画成俯视的 2D 画面（无 WebGL 时使用）。输入是持续的移动向量加上 `attack`／`dash` 两个按键；Boss 的每个招式都是地面上先预警、后生效的形状，预警开始时瞄准、之后不再跟随。它对规则引擎的接口与通道战斗相同：每次被击中一个 `HIT`，打赢时一个 `FIGHT_WON`。
 
-关卡阶段的 `fight.id` 可以引用两种战斗中的任何一种（`src/game/fightCatalog.ts` 合并两份登记表，ID 全局唯一，ID 本身就决定由哪种模拟运行），不需要新的协议版本；`HIT` 的命中种类 `HitKind` 是通道招式与场地招式的并集。`GameShell` 按 ID 挂载 `FightArena` 或 `ArenaFight`；`ArenaFight` 拥有场地战斗的时钟与键盘输入，用 `src/ui/arenaDraw.ts` 把状态画成俯视 2D 画面（3D 跟随镜头场景尚未实现）。设备名称、结局状态与「出货／打印」字样按场景取自 `sceneCopy(sceneId)`。
+关卡阶段的 `fight.id` 可以引用两种战斗中的任何一种（`src/game/fightCatalog.ts` 合并两份登记表，ID 全局唯一，ID 本身就决定由哪种模拟运行），不需要新的协议版本；`HIT` 的命中种类 `HitKind` 是通道招式与场地招式的并集。`GameShell` 按 ID 挂载 `FightArena` 或 `ArenaFight`；`ArenaFight` 拥有场地战斗的时钟与键盘输入，有 WebGL 时把同一份状态画成固定斜俯视、跟随玩家的 3D 场地（`src/scenes/ArenaScene3D.tsx`，懒加载；减少动态效果时镜头固定俯瞰全场），否则或 3D 失败时用 `src/ui/arenaDraw.ts` 画成俯视 2D 画面。场地的 3D／2D 跟随 `SceneHost` 的「简化显示」开关（`onRender3DChange`）。触屏用虚拟摇杆和攻击／冲刺按钮，摇杆读数经 `src/ui/arenaInput.ts` 换算成移动向量。设备名称、结局状态与「出货／打印」字样按场景取自 `sceneCopy(sceneId)`。
 
 ## 目标文件与职责
 
@@ -46,8 +46,9 @@ React 派发用户事件；界面与场景消费同一份状态。动画完成�
 | src/game/arena.ts | 开放场地战斗的纯函数模拟（第二个 Boss）：2D 地面上的自由移动、攻击与冲刺，地面预警形状（圆、扇形、长条），倒地弱点与拔电源 |
 | src/game/arenaFights.ts | 已登记的开放场地战斗（售货机的两场热身战与 Boss 战） |
 | src/game/fightCatalog.ts | 两种战斗的合并 ID 表（供校验）与 `fightKind(id)` |
-| src/ui/ArenaFight.tsx | 开放场地战斗界面：时钟、键盘输入（WASD／方向键、J、K／空格、Esc）、读屏播报与音效，向上报告被击中与胜利 |
+| src/ui/ArenaFight.tsx | 开放场地战斗界面：时钟、键盘输入（WASD／方向键、J、K／空格、Esc）与触屏输入（摇杆、攻击、冲刺）、3D／2D 画面切换、读屏播报与音效，向上报告被击中与胜利 |
 | src/ui/arenaDraw.ts | 场地战斗的俯视 2D 画面（canvas，纯绘制函数）：地面、插座、预警形状、Boss 朝向与弱点、玩家 |
+| src/ui/arenaInput.ts | 触屏摇杆读数与按键到移动向量的换算（纯函数） |
 | src/ui/FightArena.tsx | 战斗区域：时钟、键盘与触屏输入、渲染，向上报告被击中与胜利 |
 | src/ui/fightEffects.ts | 战斗粒子特效（墨粉云、墨渍、碎纸、火花、伤害数字）：只读取战斗状态与事件，不影响规则 |
 | src/ui/FightFxLayer.tsx | 特效 canvas 层：自有动画循环、尺寸适配、按绘制耗时自动降低粒子数量；减少动态效果或 `?fx=0` 时不挂载 |
@@ -64,6 +65,8 @@ React 派发用户事件；界面与场景消费同一份状态。动画完成�
 | src/scenes/SceneCanvas.tsx | 共享 Canvas 设置（像素比上限、按需渲染） |
 | src/scenes/PrinterScene.tsx | 打印机模型与演出 |
 | src/scenes/VendingScene.tsx | 售货机模型与演出（战斗旁的立绘；战斗本身由场地画面绘制） |
+| src/scenes/ArenaScene3D.tsx | 场地战斗的 3D 画面：地面、预警形状、售货机、玩家，跟随镜头 |
+| src/scenes/SceneErrorBoundary.tsx | 3D 画面出错时显示替代内容（立绘与场地共用） |
 | src/scenes/FallbackScene.tsx | WebGL 不可用时的简化显示 |
 | content/levels/*.json | 阶段、行动、数值和文案 |
 | src/styles/tokens.css | 颜色、间距、字体、边框与动效变量 |
