@@ -28,13 +28,25 @@ interface Props {
   steps: number;
   /** Text on the victory print (the level objective). */
   printed: string;
+  /** Heading of the victory print, e.g. "打印成功" (depends on the scene). */
+  delivered?: string;
   run?: RunSummary;
   onRestart: () => void;
   /** Switches between the full run and boss practice; absent when the level has no boss fight. */
   onSwitchMode?: () => void;
 }
 
-export function ResultPanel({ outcome, ending, patienceSpent, steps, printed, run, onRestart, onSwitchMode }: Props) {
+export function ResultPanel({
+  outcome,
+  ending,
+  patienceSpent,
+  steps,
+  printed,
+  delivered = UI.printedPage,
+  run,
+  onRestart,
+  onSwitchMode,
+}: Props) {
   const buttonRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     buttonRef.current?.focus();
@@ -46,7 +58,7 @@ export function ResultPanel({ outcome, ending, patienceSpent, steps, printed, ru
     <section className="panel result" data-outcome={outcome} aria-labelledby="result-title">
       {won && (
         <div className="result__print" aria-hidden="true" data-testid="victory-print">
-          <span className="result__print-head">{UI.printedPage}</span>
+          <span className="result__print-head">{delivered}</span>
           <span className="result__print-body">{printed}</span>
           <span className="result__print-lines" />
         </div>

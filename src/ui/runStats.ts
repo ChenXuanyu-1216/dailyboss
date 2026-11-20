@@ -1,5 +1,6 @@
-import type { Outcome } from '../game/contracts';
-import type { AttackKind, FightEvent } from '../game/fight';
+import type { ArenaEvent } from '../game/arena';
+import type { HitKind, Outcome } from '../game/contracts';
+import type { FightEvent } from '../game/fight';
 
 /**
  * What happened in a run, tallied from the fight events (presentation only: the rules engine
@@ -8,7 +9,8 @@ import type { AttackKind, FightEvent } from '../game/fight';
 export interface RunStats {
   /** Fight time across all fights, in ms (briefings and pauses excluded; slowed in assist mode). */
   fightMs: number;
-  hits: Record<AttackKind, number>;
+  /** Hits taken, by what hit (lane attacks and arena hazards; kinds never seen are absent). */
+  hits: Partial<Record<HitKind, number>>;
   whiffs: number;
   /** Weak points (jam, stun or counter) that retracted unpulled. */
   missed: number;
@@ -20,6 +22,10 @@ export interface RunStats {
   /** Damage dealt through counters. */
   counters: number;
   heavyPulls: number;
+  /** Arena: attacks that bounced off the boss's armoured front (or a downed boss's body). */
+  clanks: number;
+  /** Arena: hits on a downed boss's weak point. */
+  weakHits: number;
 }
 
 export function emptyStats(): RunStats {
@@ -33,7 +39,43 @@ export function emptyStats(): RunStats {
     perfects: 0,
     counters: 0,
     heavyPulls: 0,
+    clanks: 0,
+    weakHits: 0,
   };
+}
+
+function countHit(stats: RunStats, kind: HitKind): void {
+  stats.hits[kind] = (stats.hits[kind] ?? 0) + 1;
+}
+
+/** Arena counterpart of `addFrame` (open-arena fights, src/game/arena.ts). */
+export function addArenaFrame(stats: RunStats, events: readonly ArenaEvent[], dtMs: number): RunStats {
+  stats.fightMs += Math.max(0, dtMs);
+  for (const e of events) {
+    switch (e.type) {
+      case 'hit':
+        countHit(stats, e.attack);
+        break;
+      case 'whiff':
+        stats.whiffs += 1;
+        break;
+      case 'clank':
+        stats.clanks += 1;
+        break;
+      case 'heal':
+        if (e.amount > 0) stats.heals += 1;
+        break;
+      case 'interrupt':
+        stats.interrupts += 1;
+        break;
+      case 'damage':
+        if (e.weak) stats.weakHits += 1;
+        break;
+      default:
+        break;
+    }
+  }
+  return stats;
 }
 
 /** Adds one frame's events to the tally (mutates and returns `stats`, it lives in a ref). */
@@ -42,7 +84,7 @@ export function addFrame(stats: RunStats, events: readonly FightEvent[], dtMs: n
   for (const e of events) {
     switch (e.type) {
       case 'hit':
-        stats.hits[e.attack] += 1;
+        countHit(stats, e.attack);
         break;
       case 'whiff':
         stats.whiffs += 1;
@@ -71,7 +113,7 @@ export function addFrame(stats: RunStats, events: readonly FightEvent[], dtMs: n
 }
 
 export function totalHits(stats: RunStats): number {
-  return stats.hits.paper + stats.hits.toner + stats.hits.pinch;
+  return Object.values(stats.hits).reduce((a, n) => a + (n ?? 0), 0);
 }
 
 /** "1:07.4" */
@@ -87,7 +129,7 @@ export function formatTime(ms: number): string {
  * most: what hit you, then what slowed you down, then the next technique to try.
  */
 export function improvementTip(stats: RunStats, outcome: Outcome, mastery: boolean): string {
-  const { paper, toner, pinch } = stats.hits;
+  const { paper = 0, toner = 0, pinch = 0 } = stats.hits;
   const worst = Math.max(paper, toner, pinch);
   if (worst > 0) {
     if (worst === toner) {
@@ -115,4 +157,29 @@ export function improvementTip(stats: RunStats, outcome: Outcome, mastery: boole
     return '试试重拽：弱点刚露出、附近没有来纸时按住 ↑ 约 0.7 秒，伤害 +1。';
   }
   return '零失误！再快一点：多用极限闪避和重拽，刷新最佳时间。';
+}
+
+const ARENA_HIT_TIPS: Record<'coins' | 'soda' | 'hop' | 'rattle' | 'topple', (n: number) => string> = {
+  coins: (n) => `${n} 次被硬币砸中：它吐币前会朝你转身，往扇形的侧面走，贴近它反而更容易绕开。`,
+  soda: (n) => `${n} 次踩进汽水：圆圈出现在你脚下，马上离开；水洼会留一阵，别走回去。`,
+  hop: (n) => `${n} 次被跳砸压中：它蹲下时脚下会出现圆圈，往任意方向走出去就行。`,
+  rattle: (n) => `${n} 次被摇晃撞到：它身边出现大圆圈时就后撤，打完一下别贪刀。`,
+  topple: (n) => `${n} 次被压住：长条只朝一个方向，往侧面走，不要往后退。`,
+};
+
+/** The arena version of `improvementTip`: what hit you most, then what slowed you down. */
+export function arenaTip(stats: RunStats, outcome: Outcome): string {
+  const worst = (Object.keys(ARENA_HIT_TIPS) as (keyof typeof ARENA_HIT_TIPS)[])
+    .map((kind) => ({ kind, n: stats.hits[kind] ?? 0 }))
+    .sort((a, b) => b.n - a.n)[0]!;
+  if (worst.n > 0) return ARENA_HIT_TIPS[worst.kind](worst.n);
+  if (stats.heals > 0) {
+    return `它完成了 ${stats.heals} 次维护：看到插座发光就跑过去按 J 拔电源，它会停电露出饮料。`;
+  }
+  if (stats.clanks >= 5) {
+    return `${stats.clanks} 下打在了玻璃正面：它出招时会锁定方向，趁这时绕到侧面或背后。`;
+  }
+  if (outcome === 'failure') return '先在辅助模式下熟悉招式，再回来挑战。';
+  if (stats.weakHits === 0) return '零失误！它倒下时去砸顶上的饮料，一下顶好几下。';
+  return '零失误！再快一点：用冲刺缩短跑位，倒下的瞬间就去砸饮料。';
 }

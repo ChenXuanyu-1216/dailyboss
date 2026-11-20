@@ -24,7 +24,7 @@ import {
   type ValidationCode,
   type ValidationIssue,
 } from './contracts';
-import { FIGHT_IDS } from './fights';
+import { ALL_FIGHT_IDS } from './fightCatalog';
 
 /**
  * Runtime validation for level JSON (protocol v0.1 to v0.4).
@@ -248,12 +248,12 @@ function readFight(c: Collector, raw: unknown, path: string): FightRef | undefin
   }
   checkKeys(c, raw, FIGHT_KEYS, path);
   const id = readString(c, raw, 'id', path);
-  if (id !== undefined && !FIGHT_IDS.includes(id)) {
-    c.add('unknown-fight', join(path, 'id'), `未注册的战斗 "${id}"。已注册：${FIGHT_IDS.join('、')}。`);
+  if (id !== undefined && !ALL_FIGHT_IDS.includes(id)) {
+    c.add('unknown-fight', join(path, 'id'), `未注册的战斗 "${id}"。已注册：${ALL_FIGHT_IDS.join('、')}。`);
   }
   const target = readRequiredTarget(c, raw, path);
   const feedback = readOptionalString(c, raw, 'feedback', path);
-  if (id === undefined || !FIGHT_IDS.includes(id) || !target || feedback === null) return undefined;
+  if (id === undefined || !ALL_FIGHT_IDS.includes(id) || !target || feedback === null) return undefined;
   return { id, target, ...(feedback !== undefined ? { feedback } : {}) };
 }
 

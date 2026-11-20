@@ -8,9 +8,11 @@ import type {
   LevelDefinition,
   PhaseDefinition,
   SkillResult,
+  HitKind,
   TurnRecord,
 } from './contracts';
-import { ATTACK_KINDS, type AttackKind } from './fight';
+import { ARENA_ATTACKS } from './arena';
+import { ATTACK_KINDS } from './fight';
 
 /**
  * Pure rule engine. No timers, randomness, rendering or I/O.
@@ -120,8 +122,10 @@ function act(level: LevelDefinition, state: GameState, actionId: string, skill: 
   return { ...next, phaseId: branch.target.id };
 }
 
-function isAttackKind(v: unknown): v is AttackKind {
-  return (ATTACK_KINDS as readonly unknown[]).includes(v);
+const HIT_KINDS: readonly HitKind[] = [...ATTACK_KINDS, ...ARENA_ATTACKS];
+
+function isHitKind(v: unknown): v is HitKind {
+  return (HIT_KINDS as readonly unknown[]).includes(v);
 }
 
 function record(state: GameState, turn: TurnRecord, patience: number, patienceSpent: number): GameState {
@@ -129,7 +133,7 @@ function record(state: GameState, turn: TurnRecord, patience: number, patienceSp
 }
 
 function hit(level: LevelDefinition, state: GameState, attack: unknown): GameState {
-  if (state.outcome !== null || !isAttackKind(attack)) return state;
+  if (state.outcome !== null || !isHitKind(attack)) return state;
   const phase = findPhase(level, state.phaseId);
   if (!phase?.fight) return state;
   const patience = Math.max(0, state.patience - FIGHT_HIT_COST);

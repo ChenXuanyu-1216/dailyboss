@@ -1096,3 +1096,25 @@
 .fight__kit-known .fight__kbd {
   padding: 1px 6px;
 }
+
+/* Open-arena fights (boss #2): the floor keeps its own proportions instead of the lane height. */
+.fight[data-kind='arena'] .arena__floor {
+  height: auto;
+  min-height: var(--fight-h);
+  max-height: 70vh;
+  width: 100%;
+  background: #141923;
+}
+
+.arena__canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.fight[data-kind='arena'] .arena__charge {
+  top: 0;
+  bottom: auto;
+}

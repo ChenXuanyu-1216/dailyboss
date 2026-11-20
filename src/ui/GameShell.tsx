@@ -1,15 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { LevelDefinition, SceneProps, SkillResult } from '../game/contracts';
+import type { HitKind, LevelDefinition, SceneProps, SkillResult } from '../game/contracts';
 import { findAction, findPhase } from '../game/engine';
-import type { AttackKind, FightEvent } from '../game/fight';
+import type { ArenaEvent } from '../game/arena';
+import { getArenaFight } from '../game/arenaFights';
+import type { FightEvent } from '../game/fight';
 import { getFight } from '../game/fights';
 import { useGame } from '../game/useGame';
 import { SceneHost } from '../scenes/SceneHost';
 import { ActionPanel } from './ActionPanel';
+import { ArenaFight } from './ArenaFight';
 import { useSoundOn } from './audio';
 import { Backdrop, backdropMood, backdropMotion } from './Backdrop';
 import { BossHud } from './BossHud';
-import { INTENSITY_LABEL, OUTCOME_STATUS, UI } from './copy';
+import { INTENSITY_LABEL, UI, sceneCopy } from './copy';
 import { describeLastTurn } from './feedback';
 import { FightArena } from './FightArena';
 import { IntroSequence } from './IntroSequence';
@@ -17,7 +20,7 @@ import { fightSeed, initialAssist, practiceUnlocked, useGameShortcuts, usePrefer
 import { PatienceMeter } from './PatienceMeter';
 import { ResultPanel, type RunSummary } from './ResultPanel';
 import { loadRecords, markReachedBoss, recordWin, type RunMode } from './records';
-import { addFrame, emptyStats, improvementTip, totalHits } from './runStats';
+import { addArenaFrame, addFrame, arenaTip, emptyStats, improvementTip, totalHits } from './runStats';
 import { SkillChallenge } from './SkillChallenge';
 import { TitleScreen } from './TitleScreen';
 
@@ -61,11 +64,13 @@ export function GameShell({ level }: { level: LevelDefinition }) {
   const assistUsed = useRef(false);
   if (assist && playing) assistUsed.current = true;
   const [summary, setSummary] = useState<RunSummary | null>(null);
+  /** The phase's fight: a lane fight (the printer) or an open-arena fight (the vending machine). */
   const fight = phase.fight ? getFight(phase.fight.id) : undefined;
+  const arenaFight = phase.fight ? getArenaFight(phase.fight.id) : undefined;
   /** Live HP of the current fight, reported by the arena (presentation only). */
   const [fightHp, setFightHp] = useState<{ key: string; health: number } | null>(null);
   const fightKey = `${run}:${state.phaseId}`;
-  const isBossFight = fight !== undefined && intensity === 'critical';
+  const isBossFight = (fight !== undefined || arenaFight !== undefined) && intensity === 'critical';
   const bossHealth = !phase.fight
     ? game.bossHealth
     : !isBossFight
@@ -120,7 +125,9 @@ export function GameShell({ level }: { level: LevelDefinition }) {
       newHits = r.newHits;
       setRecords(r.records);
     }
-    const mastery = bossPhaseId !== null && Boolean(getFight(findPhase(level, bossPhaseId)?.fight?.id ?? '')?.counter);
+    const bossFightId = bossPhaseId === null ? '' : (findPhase(level, bossPhaseId)?.fight?.id ?? '');
+    const mastery = Boolean(getFight(bossFightId)?.counter);
+    const tip = getArenaFight(bossFightId) ? arenaTip(st, state.outcome) : improvementTip(st, state.outcome, mastery);
     setSummary({
       mode,
       timeMs: st.fightMs,
@@ -132,15 +139,18 @@ export function GameShell({ level }: { level: LevelDefinition }) {
       perfects: st.perfects,
       heavyPulls: st.heavyPulls,
       interrupts: st.interrupts,
-      tip: improvementTip(st, state.outcome, mastery),
+      tip,
     });
     // Only when the outcome appears; records/mode are read as they were at that moment.
   }, [state.outcome]);
 
-  const onFightHit = useCallback((attack: AttackKind) => hit(attack), [hit]);
+  const onFightHit = useCallback((attack: HitKind) => hit(attack), [hit]);
   const onFightHealth = useCallback((health: number) => setFightHp({ key: fightKey, health }), [fightKey]);
   const onFightFrame = useCallback((events: readonly FightEvent[], dtMs: number) => {
     addFrame(stats.current, events, dtMs);
+  }, []);
+  const onArenaFrame = useCallback((events: readonly ArenaEvent[], dtMs: number) => {
+    addArenaFrame(stats.current, events, dtMs);
   }, []);
   const onFightWon = useCallback(() => {
     setFightHp(null);
@@ -203,7 +213,8 @@ export function GameShell({ level }: { level: LevelDefinition }) {
   }, [turnCount, lastCost, reducedMotion]);
 
   const feedback = describeLastTurn(level, state);
-  const statusText = state.outcome ? OUTCOME_STATUS[state.outcome] : phase.title;
+  const scene = sceneCopy(level.sceneId);
+  const statusText = state.outcome ? scene.status[state.outcome] : phase.title;
   const sceneProps: SceneProps = {
     cue: phase.cue,
     outcome: state.outcome,
@@ -223,7 +234,8 @@ export function GameShell({ level }: { level: LevelDefinition }) {
       data-outcome={state.outcome ?? undefined}
       data-low-patience={state.patience === 1 || undefined}
       data-boss={bossHealth !== null || undefined}
-      data-fight={(fight && !state.outcome) || undefined}
+      data-fight={((fight || arenaFight) && !state.outcome) || undefined}
+      data-arena={(arenaFight && !state.outcome) || undefined}
       data-screen={screen}
       data-mode={mode}
     >
@@ -261,7 +273,7 @@ export function GameShell({ level }: { level: LevelDefinition }) {
         </header>
 
         <div className="layout">
-          <section className="device" aria-label="打印机状态">
+          <section className="device" aria-label={scene.device}>
             <BossHud title={level.title} health={bossHealth} turnCount={turnCount} lastCost={lastCost} />
             <SceneHost sceneId={level.sceneId} sceneProps={sceneProps} statusText={statusText} />
             <dl className="statusbar">
@@ -316,9 +328,22 @@ export function GameShell({ level }: { level: LevelDefinition }) {
                 patienceSpent={state.patienceSpent}
                 steps={state.turns.length}
                 printed={level.objective}
+                delivered={scene.delivered}
                 run={summary ?? undefined}
                 onRestart={restart}
                 onSwitchMode={canPractice ? switchMode : undefined}
+              />
+            ) : arenaFight ? (
+              <ArenaFight
+                key={fightKey}
+                fight={arenaFight}
+                seed={fightSeed()}
+                assist={assist}
+                isBoss={isBossFight}
+                onHit={onFightHit}
+                onWon={onFightWon}
+                onHealth={onFightHealth}
+                onFrame={onArenaFrame}
               />
             ) : fight ? (
               <FightArena
@@ -361,7 +386,7 @@ export function GameShell({ level }: { level: LevelDefinition }) {
                     const a = p && findAction(p, turn.actionId);
                     const label =
                       turn.fight === 'hit'
-                        ? UI.hitLog[turn.actionId as AttackKind] ?? turn.actionId
+                        ? UI.hitLog[turn.actionId as HitKind] ?? turn.actionId
                         : turn.fight === 'won'
                           ? UI.fightWonLog(p?.title ?? turn.phaseId)
                           : a?.label ?? turn.actionId;
@@ -392,7 +417,7 @@ export function GameShell({ level }: { level: LevelDefinition }) {
             </section>
 
             <div className="console__footer">
-              <p className="hint">{phase.fight ? UI.fightKeyboardHint : UI.keyboardHint}</p>
+              <p className="hint">{arenaFight ? UI.arenaKeyboardHint : phase.fight ? UI.fightKeyboardHint : UI.keyboardHint}</p>
               <button
                 type="button"
                 className="btn btn--ghost btn--small assist-toggle"

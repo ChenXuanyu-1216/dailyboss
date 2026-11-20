@@ -1,4 +1,5 @@
-import type { Intensity, Outcome } from '../game/contracts';
+import type { ArenaAbility, ArenaAttack } from '../game/arena';
+import type { HitKind, Intensity, Outcome } from '../game/contracts';
 
 /**
  * Framework-level interface copy (labels shared by every level).
@@ -104,8 +105,59 @@ export const UI = {
     perfectNoOpening: '漂亮！',
     won: '赢了！',
   },
-  hitFeedback: { paper: '一张纸糊在了你脸上。', toner: '你吸了一大口墨粉。', pinch: '你抓得太久，它把纸连同你的手一起夹住了。' },
-  hitLog: { paper: '被纸砸中', toner: '被墨粉喷中', pinch: '重拽时被夹手' },
+  hitFeedback: {
+    paper: '一张纸糊在了你脸上。',
+    toner: '你吸了一大口墨粉。',
+    pinch: '你抓得太久，它把纸连同你的手一起夹住了。',
+    coins: '一把硬币砸在你身上——全是它不肯找的零钱。',
+    soda: '你一脚踩进汽水里，黏住了。',
+    hop: '它跳起来，正好砸在你站的地方。',
+    rattle: '它疯狂摇晃，把你撞了出去。',
+    topple: '它整个倒了下来，压住了你。',
+  } satisfies Record<HitKind, string>,
+  hitLog: {
+    paper: '被纸砸中',
+    toner: '被墨粉喷中',
+    pinch: '重拽时被夹手',
+    coins: '被硬币砸中',
+    soda: '踩进汽水',
+    hop: '被跳砸压中',
+    rattle: '被摇晃撞到',
+    topple: '被倒下的售货机压住',
+  } satisfies Record<HitKind, string>,
+  // Open-arena fights (boss #2)
+  arenaKeyboardHint: '键位：WASD/方向键 移动 · J 攻击 · K/空格 冲刺 · Esc 暂停 · R 重开',
+  arenaFloor: '场地（俯视）',
+  arenaWarn: {
+    coins: '硬币预警：离开扇形区域',
+    soda: '汽水预警：离开圆圈',
+    hop: '跳砸预警：离开脚下的圆圈',
+    rattle: '摇晃预警：离它远一点',
+    topple: '倾倒预警：离开它面前的长条',
+  } satisfies Record<ArenaAttack, string>,
+  arenaChargeCue: (charge: string) => `${charge}——跑到发光的插座边按 J 拔电源。`,
+  arenaDownCue: (weak: string) => `它倒下了：走到${weak}旁边按 J。`,
+  arenaAbility: { move: '移动', attack: '攻击', dash: '冲刺' } satisfies Record<ArenaAbility, string>,
+  arenaKeys: { move: 'WASD / 方向键', attack: 'J', dash: 'K / 空格' } satisfies Record<ArenaAbility, string>,
+  arenaHelp: {
+    move: '走开躲避地上的预警。它的正面是玻璃，绕到侧面或背后打。',
+    attack: '贴近它出手；打中一下它就会转身防备，再找下一个破绽。',
+    dash: '短距离冲刺，冲刺途中不会被打中，用完要等一下。',
+  } satisfies Record<ArenaAbility, string>,
+  arenaCalls: {
+    hit: '被打中了！',
+    evade: '躲开了。',
+    damage: '打中了！',
+    weakDamage: '正中要害！',
+    clank: '铛——打在玻璃上了，绕到后面去。',
+    whiff: '够不着。',
+    down: '它倒下了！',
+    up: '它站起来了。',
+    interrupt: '拔掉电源了！',
+    heal: '维护完成，它回了血。',
+    healNone: '维护完成。',
+    won: '赢了！',
+  },
   fightWonLog: (title: string) => `通过：${title}`,
   fightWonFeedback: '你赢下了这一战。',
   // Boss presentation
@@ -146,9 +198,33 @@ export const OUTCOME_LABEL: Record<Outcome, string> = {
   failure: '挑战失败',
 };
 
-/** Short state word shown in the device status strip once the run ends. */
-export const OUTCOME_STATUS: Record<Outcome, string> = {
-  perfect: '打印完成',
-  normal: '打印完成（有损）',
-  failure: '待机',
+/** Wording that depends on which machine the level's scene shows. */
+export interface SceneCopy {
+  /** Label of the panel that shows the machine. */
+  device: string;
+  /** Accessible name prefix of the simplified (no-WebGL) drawing. */
+  fallback: string;
+  /** Short state word shown in the device status strip once the run ends. */
+  status: Record<Outcome, string>;
+  /** Heading of the "what you got" slip on the results screen. */
+  delivered: string;
+}
+
+const SCENE_COPY: Record<string, SceneCopy> = {
+  printer: {
+    device: '打印机状态',
+    fallback: '打印机示意',
+    status: { perfect: '打印完成', normal: '打印完成（有损）', failure: '待机' },
+    delivered: '打印成功',
+  },
+  vending: {
+    device: '售货机状态',
+    fallback: '售货机示意',
+    status: { perfect: '出货完成', normal: '出货完成（有点凹）', failure: '待机' },
+    delivered: '出货成功',
+  },
 };
+
+export function sceneCopy(sceneId: string): SceneCopy {
+  return SCENE_COPY[sceneId] ?? SCENE_COPY.printer!;
+}

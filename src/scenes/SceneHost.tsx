@@ -1,5 +1,6 @@
 import { Component, Suspense, useCallback, useState, type ReactNode } from 'react';
 import type { SceneProps } from '../game/contracts';
+import { sceneCopy } from '../ui/copy';
 import { FallbackScene } from './FallbackScene';
 import { getSceneComponent } from './registry';
 import { detectWebGL, initialRenderMode, probeWebGL, type RenderMode } from './webgl';
@@ -41,7 +42,9 @@ export function SceneHost({ sceneId, sceneProps, statusText }: Props) {
 
   const Scene = getSceneComponent(sceneId);
   const use3D = mode === '3d' && failure === null && Scene !== undefined;
-  const fallback = <FallbackScene {...sceneProps} statusText={statusText} />;
+  const fallback = (
+    <FallbackScene {...sceneProps} statusText={statusText} sceneId={sceneId} label={sceneCopy(sceneId).fallback} />
+  );
 
   const toggle = () => {
     if (mode === '3d' && failure === null) {

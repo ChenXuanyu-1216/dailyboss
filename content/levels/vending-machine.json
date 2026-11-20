@@ -1,0 +1,90 @@
+{
+  "schemaVersion": "0.4",
+  "id": "vending-machine",
+  "title": "吞币售货机",
+  "objective": "买到一瓶饮料",
+  "intro": {
+    "tagline": "下课只有 10 分钟，你只想买一瓶水。",
+    "beats": [
+      {
+        "art": "clock",
+        "text": "10:50。下一节课 11 点开始，你嗓子快冒烟了。"
+      },
+      {
+        "art": "document",
+        "text": "走廊尽头有台售货机。你投进了最后一枚硬币。"
+      },
+      {
+        "art": "error",
+        "text": "「请投币。」硬币没了，饮料也没出来。"
+      },
+      {
+        "art": "eyes",
+        "text": "你拍了一下它的侧面。它慢慢转了过来。"
+      }
+    ]
+  },
+  "sceneId": "vending",
+  "initialPatience": 5,
+  "initialPhaseId": "pay",
+  "phases": [
+    {
+      "id": "pay",
+      "title": "吞币",
+      "description": "它吞了你的硬币，还朝你吐回一把零钱。玻璃正面打不动，绕到它侧面去。",
+      "cue": "pay",
+      "intensity": "calm",
+      "fight": {
+        "id": "vending-pay",
+        "target": {
+          "type": "phase",
+          "id": "change"
+        },
+        "feedback": "你从侧面狠狠拍了几下。售货机吐出了你的硬币——然后亮起了「找零中」。"
+      }
+    },
+    {
+      "id": "change",
+      "title": "找零中",
+      "description": "它开始到处跳，把汽水喷在地上。它倒下或者断电时，饮料就露出来了。",
+      "cue": "change",
+      "intensity": "warning",
+      "fight": {
+        "id": "vending-change",
+        "target": {
+          "type": "phase",
+          "id": "boss"
+        },
+        "feedback": "售货机停电了三秒，又自己重启。屏幕上只剩一行字：「出货失败」。"
+      }
+    },
+    {
+      "id": "boss",
+      "title": "出货失败：最终 Boss",
+      "description": "你的饮料卡在最中间那格。躲开硬币和汽水，趁它维护时拔掉电源，把它砸到出货为止。",
+      "cue": "boss",
+      "intensity": "critical",
+      "fight": {
+        "id": "vending-boss",
+        "target": {
+          "type": "resolve"
+        },
+        "feedback": "最后一下，饮料咕咚一声掉进了出货口。售货机安静了。"
+      }
+    }
+  ],
+  "endings": {
+    "perfect": {
+      "title": "你买到了一瓶水",
+      "description": "一次都没被砸中。今天，机器服从了人类。"
+    },
+    "normal": {
+      "title": "饮料出来了",
+      "description": "瓶子有点凹，但还能喝。赶得上上课。"
+    },
+    "failure": {
+      "title": "耐心已耗尽",
+      "description": "售货机仍在待机。你还是去接一杯自来水吧。"
+    }
+  }
+}

@@ -1,6 +1,5 @@
 import { useCallback, useMemo, useReducer } from 'react';
-import type { GameEvent, GameState, LevelDefinition, SkillResult } from './contracts';
-import type { AttackKind } from './fight';
+import type { GameEvent, GameState, HitKind, LevelDefinition, SkillResult } from './contracts';
 import {
   createInitialState,
   getAvailableActions,
@@ -24,7 +23,7 @@ export function useGame(level: LevelDefinition) {
       dispatch(skill ? { type: 'ACT', actionId, skill } : { type: 'ACT', actionId }),
     [],
   );
-  const hit = useCallback((attack: AttackKind) => dispatch({ type: 'HIT', attack }), []);
+  const hit = useCallback((attack: HitKind) => dispatch({ type: 'HIT', attack }), []);
   const winFight = useCallback(() => dispatch({ type: 'FIGHT_WON' }), []);
   const restart = useCallback(
     (phaseId?: string) => dispatch(phaseId === undefined ? { type: 'RESTART' } : { type: 'RESTART', phaseId }),

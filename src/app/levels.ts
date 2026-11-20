@@ -2,6 +2,7 @@ import type { LevelDefinition, Result } from '../game/contracts';
 import { validateLevel } from '../game/validateLevel';
 import { SCENE_CATALOG } from '../scenes/catalog';
 import printerFromHell from '../../content/levels/printer-from-hell.json';
+import vendingMachine from '../../content/levels/vending-machine.json';
 
 /**
  * Level content sources. Adding a level using existing mechanics = add a JSON file
@@ -9,6 +10,7 @@ import printerFromHell from '../../content/levels/printer-from-hell.json';
  */
 export const LEVEL_SOURCES: Readonly<Record<string, unknown>> = {
   'printer-from-hell': printerFromHell,
+  'vending-machine': vendingMachine,
 };
 
 export const DEFAULT_LEVEL_ID = 'printer-from-hell';

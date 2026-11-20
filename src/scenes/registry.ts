@@ -9,6 +9,7 @@ import type { Scene3DProps } from './types';
  */
 export const SCENE_REGISTRY: Record<SceneId, LazyExoticComponent<ComponentType<Scene3DProps>>> = {
   printer: lazy(() => import('./PrinterScene')),
+  vending: lazy(() => import('./VendingScene')),
 };
 
 export function getSceneComponent(sceneId: string) {
