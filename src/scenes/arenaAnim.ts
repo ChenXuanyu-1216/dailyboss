@@ -86,6 +86,17 @@ export function newMachineMemo(): MachineMemo {
   return { topple: null };
 }
 
+/** Ground-level combat cue. The animated cabinet can leave its rules-defined footprint. */
+export function armorPose(s: ArenaState): { center: Vec; yaw: number; visible: boolean } {
+  return { center: s.boss, yaw: s.bossFacing, visible: !s.down && !s.won };
+}
+
+/** The charge owns a copy of its socket position, not the same object as the floor plate. */
+export function isLiveSocket(s: ArenaState, socket: Vec): boolean {
+  const live = s.charge?.socket;
+  return live !== undefined && live.x === socket.x && live.y === socket.y;
+}
+
 /** How long the fall takes after the topple strikes, and how long getting up takes. */
 export const FALL_MS = 240;
 export const RISE_MS = 480;

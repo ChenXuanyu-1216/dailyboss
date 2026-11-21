@@ -117,6 +117,8 @@ export function HazardDecal({
   motion: boolean;
   floor: { halfW: number; halfH: number };
 }) {
+  // stepArena clones the hazard (to update hit/aimed state), but its shape and kind stay fixed.
+  const { shape, kind } = h;
   const material = useMemo(() => {
     const m = new ShaderMaterial({
       vertexShader: VERT,
@@ -125,36 +127,36 @@ export function HazardDecal({
       depthWrite: false,
       blending: NormalBlending,
       uniforms: {
-        uType: { value: TYPE[h.shape.type] },
-        uR: { value: h.shape.type === 'circle' ? h.shape.r : h.shape.type === 'cone' ? h.shape.range : 0 },
-        uHalf: { value: h.shape.type === 'cone' ? h.shape.half : 0 },
-        uLen: { value: h.shape.type === 'strip' ? h.shape.length : 0 },
-        uWidth: { value: h.shape.type === 'strip' ? h.shape.width : 0 },
+        uType: { value: TYPE[shape.type] },
+        uR: { value: shape.type === 'circle' ? shape.r : shape.type === 'cone' ? shape.range : 0 },
+        uHalf: { value: shape.type === 'cone' ? shape.half : 0 },
+        uLen: { value: shape.type === 'strip' ? shape.length : 0 },
+        uWidth: { value: shape.type === 'strip' ? shape.width : 0 },
         uOffset: {
           value: new Vector2(
-            h.shape.type === 'cone' ? (h.shape.range + 0.3) / 2 : h.shape.type === 'strip' ? h.shape.length / 2 : 0,
+            shape.type === 'cone' ? (shape.range + 0.3) / 2 : shape.type === 'strip' ? shape.length / 2 : 0,
             0,
           ),
         },
         uOrigin: {
           value: new Vector2(
-            h.shape.type === 'circle' ? h.shape.c.x : h.shape.o.x,
-            h.shape.type === 'circle' ? h.shape.c.y : h.shape.o.y,
+            shape.type === 'circle' ? shape.c.x : shape.o.x,
+            shape.type === 'circle' ? shape.c.y : shape.o.y,
           ),
         },
-        uDir: { value: h.shape.type === 'circle' ? 0 : h.shape.dir },
+        uDir: { value: shape.type === 'circle' ? 0 : shape.dir },
         uFloor: { value: new Vector2(floor.halfW, floor.halfH) },
         uProgress: { value: 0 },
         uActive: { value: 0 },
         uTime: { value: 0 },
         uMotion: { value: motion ? 1 : 0 },
         uWarn: { value: WARN.clone() },
-        uStrike: { value: new Color(STRIKE[h.kind]) },
+        uStrike: { value: new Color(STRIKE[kind]) },
       },
     });
     m.toneMapped = false;
     return m;
-  }, [h, motion, floor.halfW, floor.halfH]);
+  }, [shape, kind, motion, floor.halfW, floor.halfH]);
   useEffect(() => () => material.dispose(), [material]);
 
   useFrame(({ clock }) => {

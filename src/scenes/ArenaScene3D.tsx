@@ -14,7 +14,9 @@ import {
 import { ARENA_RULES, type ArenaFightDefinition, type ArenaState, type Vec } from '../game/arena';
 import {
   FALL_MS,
+  armorPose,
   bodyCentre,
+  isLiveSocket,
   machinePose,
   machineSize,
   newMachineMemo,
@@ -92,7 +94,6 @@ function Arena({ def, state, feed, quality }: Omit<ArenaScene3DProps, 'onContext
   const drink = useRef<Group>(null);
   const weakRing = useRef<Mesh>(null);
   const focus = useRef<Vec | null>(null);
-  const eased = useRef({ armorYaw: NaN });
 
   const { camera, size: view, invalidate, clock } = useThree();
 
@@ -127,8 +128,11 @@ function Arena({ def, state, feed, quality }: Omit<ArenaScene3DProps, 'onContext
       neonPink: new MeshBasicMaterial({ color: '#ff4fb8', toneMapped: false }),
       shadow: new MeshBasicMaterial({ color: '#000000', alphaMap: tex.blob, transparent: true, opacity: 0.55, depthWrite: false }),
       armor: new MeshBasicMaterial({ color: '#7fd8ff', transparent: true, opacity: 0.5, blending: AdditiveBlending, depthWrite: false, toneMapped: false }),
+      footprint: new MeshBasicMaterial({ color: '#dce8ff', transparent: true, opacity: 0.45, depthWrite: false, toneMapped: false }),
       socket: new MeshPhysicalMaterial({ color: '#8e97a8', roughness: 0.4, clearcoat: 0.6 }),
-      socketLed: new MeshBasicMaterial({ color: '#2a3a33', toneMapped: false }),
+      socketLedIdle: new MeshBasicMaterial({ color: '#29c46f', toneMapped: false }),
+      socketLedLive: new MeshBasicMaterial({ color: '#ffd23f', toneMapped: false }),
+      socketReach: new MeshBasicMaterial({ color: '#ffd23f', transparent: true, opacity: 0.3, depthWrite: false, toneMapped: false }),
       cable: new MeshBasicMaterial({ color: '#ffd23f', toneMapped: false }),
       weak: new MeshBasicMaterial({ color: '#ffd23f', transparent: true, opacity: 0.4, blending: AdditiveBlending, depthWrite: false, toneMapped: false }),
       drink: new MeshPhysicalMaterial({ map: tex.can, metalness: 0.6, roughness: 0.2, emissive: '#ffb800', emissiveIntensity: 1.2 }),
@@ -326,14 +330,13 @@ function Arena({ def, state, feed, quality }: Omit<ArenaScene3DProps, 'onContext
     });
 
     const pose = machine.current;
-    // Armour arc: the machine's glass front, on the floor.
+    // The footprint and armour are gameplay cues: do not follow the airborne model or ease
+    // the facing, since the rules can turn instantly and only move the body at the strike.
     if (armor.current) {
-      const e = eased.current;
-      if (Number.isNaN(e.armorYaw)) e.armorYaw = pose.yaw;
-      e.armorYaw += turnToward(e.armorYaw, pose.yaw) * Math.min(1, dt * 14);
-      armor.current.visible = pose.fall === 0 && !s.won;
-      armor.current.position.set(pose.anchor.x, 0.03, -pose.anchor.y);
-      armor.current.rotation.set(-Math.PI / 2, 0, e.armorYaw);
+      const marker = armorPose(s);
+      armor.current.visible = marker.visible;
+      armor.current.position.set(marker.center.x, 0.03, -marker.center.y);
+      armor.current.rotation.set(-Math.PI / 2, 0, marker.yaw);
     }
     if (bossShadow.current) {
       const c = pose.fall > 0 ? bodyCentre(def, pose) : pose.anchor;
@@ -379,8 +382,9 @@ function Arena({ def, state, feed, quality }: Omit<ArenaScene3DProps, 'onContext
       }
     }
     // Socket LEDs: the live one blinks.
-    const live = s.charge?.socket;
-    mat.socketLed.color.set(live ? '#ffd23f' : '#29c46f').multiplyScalar(live && motion ? 0.6 + 0.6 * Math.sin(clock.elapsedTime * 12) : live ? 1 : 0.5);
+    const livePulse = motion ? 0.6 + 0.4 * Math.sin(clock.elapsedTime * 12) : 1;
+    mat.socketLedLive.color.set('#ffd23f').multiplyScalar(livePulse);
+    mat.socketReach.opacity = 0.18 + 0.2 * livePulse;
 
     // Camera: follow the player within the floor, shake on impacts.
     const cam = camera as PerspectiveCamera;
@@ -464,9 +468,14 @@ function Arena({ def, state, feed, quality }: Omit<ArenaScene3DProps, 'onContext
               <boxGeometry args={[0.04, 0.01, 0.12]} />
             </mesh>
           ))}
-          <mesh position={[0.17, 0.13, 0.17]} material={mat.socketLed}>
+          <mesh position={[0.17, 0.13, 0.17]} material={isLiveSocket(state, sock) ? mat.socketLedLive : mat.socketLedIdle}>
             <sphereGeometry args={[0.04, 10, 8]} />
           </mesh>
+          {isLiveSocket(state, sock) && (
+            <mesh position={[0, 0.018, 0]} rotation-x={-Math.PI / 2} material={mat.socketReach}>
+              <circleGeometry args={[ARENA_RULES.plugReach, 40]} />
+            </mesh>
+          )}
         </group>
       ))}
 
@@ -485,8 +494,11 @@ function Arena({ def, state, feed, quality }: Omit<ArenaScene3DProps, 'onContext
         <planeGeometry args={[0.9, 0.9]} />
       </mesh>
 
-      {/* the armoured front, marked on the floor */}
+      {/* the rules-defined footprint and armoured front, marked on the floor */}
       <group ref={armor}>
+        <mesh material={mat.footprint}>
+          <ringGeometry args={[def.bossRadius * 0.96, def.bossRadius, 48]} />
+        </mesh>
         <mesh material={mat.armor}>
           <ringGeometry args={[def.bossRadius * 1.05, def.bossRadius * 1.25, 40, 1, -MathUtils.degToRad(def.armorDeg), 2 * MathUtils.degToRad(def.armorDeg)]} />
         </mesh>
