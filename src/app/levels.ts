@@ -43,3 +43,11 @@ export function loadLevel(levelId: string): Result<LevelDefinition> {
   }
   return result;
 }
+
+/** Every registered level that loads cleanly, in registry order (the title screen's level picker). */
+export function listLevels(): LevelDefinition[] {
+  return Object.keys(LEVEL_SOURCES).flatMap((id) => {
+    const result = loadLevel(id);
+    return result.ok ? [result.value] : [];
+  });
+}

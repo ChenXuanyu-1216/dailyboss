@@ -34,6 +34,8 @@ interface Props {
   onRestart: () => void;
   /** Switches between the full run and boss practice; absent when the level has no boss fight. */
   onSwitchMode?: () => void;
+  /** Back to the title screen to pick another level; absent when there is only one. */
+  onChangeLevel?: () => void;
 }
 
 export function ResultPanel({
@@ -46,6 +48,7 @@ export function ResultPanel({
   run,
   onRestart,
   onSwitchMode,
+  onChangeLevel,
 }: Props) {
   const buttonRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -141,6 +144,11 @@ export function ResultPanel({
         {onSwitchMode && (
           <button type="button" className="btn btn--ghost" onClick={onSwitchMode} data-testid="switch-mode">
             {run?.mode === 'boss' ? UI.fullRun : UI.bossPractice}
+          </button>
+        )}
+        {onChangeLevel && (
+          <button type="button" className="btn btn--ghost" onClick={onChangeLevel} data-testid="change-level">
+            {UI.changeLevel}
           </button>
         )}
       </div>

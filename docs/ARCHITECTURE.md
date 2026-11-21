@@ -28,7 +28,8 @@ React 派发用户事件；界面与场景消费同一份状态。动画完成�
 
 | 位置 | 职责 |
 | --- | --- |
-| src/app/App.tsx | 应用装配与关卡选择 |
+| src/app/App.tsx | 应用装配；持有当前关卡，标题画面选关后重新挂载 `GameShell` |
+| src/app/levelChoice.ts | 开局关卡的取舍（`?level` 链接 → 本机记住的选择 → 默认关卡），选关时写入地址栏与 localStorage |
 | src/app/levels.ts | 关卡 JSON 登记与加载（调用校验） |
 | src/game/contracts.ts | 配置、状态、事件、场景协议 |
 | src/game/validateLevel.ts | 配置结构、引用与资源标识校验 |

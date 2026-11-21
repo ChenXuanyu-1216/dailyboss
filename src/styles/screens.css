@@ -63,8 +63,25 @@
   animation: title-in 0.7s var(--ease-out) both;
 }
 
+.title__picker {
+  animation-delay: 0.08s;
+}
+
 .title__card {
   animation-delay: 0.15s;
+}
+
+/* Picking a level reopens the title screen: only the level card swaps in, the rest stays put. */
+.title[data-switched] > * {
+  animation: none;
+}
+
+.title[data-switched] > .title__card {
+  animation: title-swap 0.32s var(--ease-out) both;
+}
+
+.title[data-switched] .title__start {
+  animation: title-glow 2.4s ease-in-out 1.2s infinite;
 }
 
 .title__actions {
@@ -163,6 +180,123 @@
   transform-box: fill-box;
   transform-origin: 50% 0;
   animation: title-tongue 2.8s ease-in-out infinite;
+}
+
+/* A tall machine: sized by height, not by the portrait's width like the printer. */
+.title__portrait .title__vending {
+  width: auto;
+  height: 172px;
+  animation: title-bob 3.2s ease-in-out infinite;
+}
+
+.title__sign {
+  animation: title-eyes 5.4s steps(1, end) 0.8s infinite;
+}
+
+.title__slot {
+  animation: title-led 0.9s steps(1, end) infinite;
+}
+
+.title__stuck {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: title-stuck 2.2s ease-in-out infinite;
+}
+
+/* ---------- level picker ---------- */
+
+.title__picker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  width: 100%;
+  max-width: 780px;
+}
+
+.title__picker-label {
+  color: var(--t-ink-3);
+  font-size: var(--fs-xs);
+  letter-spacing: 0.2em;
+}
+
+.title__picks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--sp-3);
+  width: 100%;
+}
+
+.title__pick {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: 60px;
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--t-line);
+  border-radius: 10px;
+  background: rgb(20 22 36 / 0.7);
+  color: var(--t-ink-2);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-fast, 0.15s) ease,
+    background-color var(--dur-fast, 0.15s) ease,
+    color var(--dur-fast, 0.15s) ease;
+}
+
+.title__pick:hover {
+  border-color: rgb(255 255 255 / 0.35);
+  color: var(--t-ink);
+}
+
+.title__pick[aria-checked='true'] {
+  border-color: var(--c-accent);
+  background: linear-gradient(160deg, rgb(229 72 77 / 0.22), rgb(32 18 30 / 0.85));
+  color: var(--t-ink);
+  box-shadow: 0 0 0 1px var(--c-accent), 0 12px 32px -14px rgb(229 72 77 / 0.8);
+  cursor: default;
+}
+
+.title__pick-n {
+  flex: none;
+  color: var(--t-ink-3);
+  font-family: var(--font-mono);
+  font-size: var(--fs-sm);
+}
+
+.title__pick[aria-checked='true'] .title__pick-n {
+  color: #ff6b6e;
+}
+
+.title__pick-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.title__pick-name {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-bold);
+}
+
+.title__pick-goal {
+  color: var(--t-ink-3);
+  font-size: var(--fs-xs);
+}
+
+.title__pick-badge {
+  margin-left: auto;
+  flex: none;
+  padding: 2px var(--sp-2);
+  border-radius: 999px;
+  background: rgb(255 210 122 / 0.14);
+  color: #ffd27a;
+  font-size: 0.6875rem;
+  font-weight: var(--fw-bold);
 }
 
 .title__info {
@@ -350,6 +484,27 @@
   }
   92% {
     transform: none;
+  }
+}
+
+@keyframes title-swap {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+}
+
+@keyframes title-stuck {
+  0%,
+  70%,
+  100% {
+    transform: none;
+  }
+  78% {
+    transform: rotate(-8deg);
+  }
+  86% {
+    transform: rotate(6deg);
   }
 }
 
@@ -654,6 +809,26 @@
     padding: var(--sp-4);
   }
 
+  .title__picks {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--sp-2);
+  }
+
+  .title__pick {
+    min-height: 54px;
+    padding: var(--sp-2) var(--sp-3);
+  }
+
+  .title__pick-n {
+    display: none;
+  }
+
+  .title__pick-badge {
+    position: absolute;
+    top: -8px;
+    right: 6px;
+  }
+
   .title__portrait {
     min-height: 140px;
   }
@@ -661,6 +836,10 @@
   .title__portrait svg {
     width: auto;
     height: 130px;
+  }
+
+  .title__portrait .title__vending {
+    height: 132px;
   }
 
   .title__actions {

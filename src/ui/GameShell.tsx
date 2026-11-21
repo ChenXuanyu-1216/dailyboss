@@ -25,7 +25,17 @@ import { SkillChallenge } from './SkillChallenge';
 import { TitleScreen } from './TitleScreen';
 
 /** Generic level layout. Everything level-specific comes from `level`. */
-export function GameShell({ level }: { level: LevelDefinition }) {
+interface Props {
+  level: LevelDefinition;
+  /** Every playable level, for the title screen's picker. */
+  levels?: readonly LevelDefinition[];
+  /** Opens another level (or this one again) on its title screen. */
+  onChooseLevel?: (levelId: string) => void;
+  /** This title screen was reached by picking a level: focus starts on the picker. */
+  levelSwitched?: boolean;
+}
+
+export function GameShell({ level, levels = [], onChooseLevel, levelSwitched = false }: Props) {
   const game = useGame(level);
   const { state, phase, actions, intensity, progress, lastTurn, act, hit, winFight, restart: restartGame } = game;
   const reducedMotion = usePrefersReducedMotion();
@@ -339,6 +349,7 @@ export function GameShell({ level }: { level: LevelDefinition }) {
                 run={summary ?? undefined}
                 onRestart={restart}
                 onSwitchMode={canPractice ? switchMode : undefined}
+                onChangeLevel={onChooseLevel && levels.length > 1 ? () => onChooseLevel(level.id) : undefined}
               />
             ) : arenaFight ? (
               <ArenaFight
@@ -448,6 +459,9 @@ export function GameShell({ level }: { level: LevelDefinition }) {
           onStart={startGame}
           onPractice={canPractice ? startPractice : undefined}
           bestMs={records.full.timeMs}
+          levels={levels}
+          onChooseLevel={onChooseLevel}
+          focusPicker={levelSwitched}
           soundOn={soundOn}
           onToggleSound={toggleSound}
         />

@@ -24,7 +24,7 @@ An open-source browser game that turns everyday frustrations into boss fights.
 - 关卡 JSON 运行时校验，错误以「位置 + 原因」的可读列表展示。
 - 纯函数规则引擎（`useReducer` 接入）：离线 → 队列 → 卡纸 Boss 战，完美／普通／失败结局、重开、无效行动与终局保护、耐心归零优先判负。
 - 协议 v0.4（向后兼容）：关卡可带开场剧情（`intro`）。v0.3 起阶段可以是实时战斗（`fight`），每次被击中扣 1 耐心，打赢后进入 `fight.target`。v0.2 的行动反馈、技巧判定（时机／连打）与阶段强度，以及 v0.1 关卡，都仍可加载。
-- 进入游戏（迭代 4）：标题画面（今日副本、Boss 立绘、关卡路线、开始游戏与辅助模式）→ 可跳过的开场剧情（逐字显示、带插画）→ 第一场战斗。游戏窗口后是深夜的房间背景，灯光随局势变化（故障升级、Boss 战警报、通关天亮、失败变灰）。
+- 进入游戏（迭代 4）：标题画面（选择副本：地狱打印机或吞币售货机；Boss 立绘、关卡路线、开始游戏与辅助模式）→ 可跳过的开场剧情（逐字显示、带插画）→ 第一场战斗。游戏窗口后是深夜的房间背景，灯光随局势变化（故障升级、Boss 战警报、通关天亮、失败变灰）。
 - 重玩理由与技巧空间（迭代 5）：Boss 战加入两个进阶技巧——纸快落地时才闪开、墨粉喷出前一刻才格挡，打印机会在你脚下提前露出破绽；按住 ↑ 重拽，伤害 +1，但按住时不能移动，弱点先缩回会被夹手。结算显示通关时间、被击中次数、个人最佳（本机保存，辅助模式不计入）和一条改进建议；到达过 Boss 后可以直接 Boss 练习。实时合成的音效（可关闭）。背景有秒针、热气、窗外灯光等小动效，有 GPU 时 Boss 战还有警报扫光。
 - 实时战斗（迭代 2）：纯函数、按时间步进的战斗模拟（`src/game/fight.ts`，带种子的随机数，可完全复现）。三条通道；打印机的招式都有预警：纸张砸向发光的通道（闪避 ←/→）、墨粉喷满全屏（按住格挡 ↓，格挡时不能移动）、弱点只在某条通道短暂露出（走过去按 ↑ 拽出，乱拽会被夹手）、「安装更新」充能会回血（按住 K 重启打断，打断后露出大弱点）。两场热身战各教两个技能，Boss 战分三个形态（盖板 → 拔河 → 最后两厘米）逐步叠加招式。初始耐心 5，零失误才是完美结局。
 - 平衡由脚本玩家验证（Vitest）：反应 350 ms 的谨慎玩家在 20 个种子下全部零失误通关；站着不动、狂按拽出、一直格挡、乱按所有键都会耗尽耐心；反应 900 ms 打不过 Boss。零失误的 Boss 战约 1 分钟战斗时间。
@@ -58,7 +58,7 @@ npx playwright install chromium   # 首次运行浏览器测试前安装 Chromiu
 npm run test:e2e     # 生产构建 + Playwright 浏览器测试（/dailyboss/）
 ```
 
-调试参数：`?render=simple` 直接使用简化显示；`?assist=1` 开启辅助模式（战斗放慢到 65%，技巧判定自动成功，也可在界面右下角切换）；`?seed=<整数>` 固定战斗随机数；`?level=<id>` 选择已登记的关卡（未知 ID 会显示配置错误页）；`?practice=1` 直接解锁 Boss 练习；`?sfx=0` 静音；`?bg=off|lite|full` 指定背景动效等级；`?fx=0` 关闭战斗粒子和背景动效。如需其他部署路径，可设置 `BASE_PATH=/其他路径/ npm run build`。
+调试参数：`?render=simple` 直接使用简化显示；`?assist=1` 开启辅助模式（战斗放慢到 65%，技巧判定自动成功，也可在界面右下角切换）；`?seed=<整数>` 固定战斗随机数；`?level=<id>` 直接打开已登记的关卡（也可在标题画面选择；未知 ID 会显示配置错误页）；`?practice=1` 直接解锁 Boss 练习；`?sfx=0` 静音；`?bg=off|lite|full` 指定背景动效等级；`?fx=0` 关闭战斗粒子和背景动效。如需其他部署路径，可设置 `BASE_PATH=/其他路径/ npm run build`。
 
 ### 自动化测试与 CI
 
@@ -159,7 +159,7 @@ First runnable version. Level 1, "Printer From Hell" (地狱打印机), is fully
 - Runtime validation of level JSON, with readable errors that give the location and the reason.
 - Pure rule engine wired through `useReducer`: offline → queue → paper-jam boss fight. It handles perfect/normal/failure endings, restart, invalid actions and actions after the game ends. Failure takes precedence when patience hits zero.
 - Protocol v0.4, backward compatible: a level can carry an opening story (`intro`). Since v0.3 a phase can be a real-time `fight`. Each hit taken costs 1 patience, and winning follows `fight.target`. v0.2 levels (feedback text, timing/mash skill checks, intensity) and v0.1 levels still load.
-- Way into the game (Iteration 4): a title screen (today's level, boss portrait, the route through the phases, Start and Assist), then a skippable opening story (typed lines with illustrations), then the first fight. Behind the game window is a room late at night whose lighting follows the game: amber as things go wrong, a red alarm in the boss fight, sunrise after a win, grey after a loss.
+- Way into the game (Iteration 4): a title screen (pick a level, the printer or the vending machine; boss portrait, the route through the phases, Start and Assist), then a skippable opening story (typed lines with illustrations), then the first fight. Behind the game window is a room late at night whose lighting follows the game: amber as things go wrong, a red alarm in the boss fight, sunrise after a win, grey after a loss.
 - Reasons to replay and room for skill (Iteration 5): the boss fight adds two advanced techniques. Step out of the lane just before the sheet lands, or raise the block just before the toner sprays, and the printer exposes an opening under you early. Hold ↑ for a heavy pull worth +1 damage; you can't move while holding, and you get pinched if the weak point retracts first. The results show clear time, hits taken, the personal best (stored in this browser; assist runs don't count) and one tip based on the run. Once you have reached the boss, boss practice starts there directly. Sound effects are synthesised in the browser and can be turned off. The backdrop has small motion (the second hand, steam, city windows), plus an alarm sweep in the boss fight when a GPU is available.
 - Real-time fights (Iteration 2): a pure, time-stepped simulation (`src/game/fight.ts`) with a seeded RNG, so a seed plus the inputs replays a fight exactly. There are three lanes, and every printer attack is telegraphed. Each one has one answer:
   - paper lands in the lane that glowed: **dodge** with ←/→;
@@ -208,7 +208,7 @@ npx playwright install chromium   # once, before the first browser test run
 npm run test:e2e     # production build + Playwright browser tests (/dailyboss/)
 ```
 
-Debug parameters: `?render=simple` starts in the simplified display. `?assist=1` turns on assist mode, which slows fights to 65% and makes skill checks succeed (there is also a toggle at the bottom right). `?seed=<integer>` fixes the fight RNG. `?level=<id>` picks a registered level; an unknown ID shows the config error page. `?practice=1` unlocks boss practice, `?sfx=0` mutes, `?bg=off|lite|full` picks the backdrop motion level, and `?fx=0` turns off fight particles and backdrop motion. To deploy under a different path, run `BASE_PATH=/other/ npm run build`.
+Debug parameters: `?render=simple` starts in the simplified display. `?assist=1` turns on assist mode, which slows fights to 65% and makes skill checks succeed (there is also a toggle at the bottom right). `?seed=<integer>` fixes the fight RNG. `?level=<id>` opens a registered level directly (the title screen also has a level picker); an unknown ID shows the config error page. `?practice=1` unlocks boss practice, `?sfx=0` mutes, `?bg=off|lite|full` picks the backdrop motion level, and `?fx=0` turns off fight particles and backdrop motion. To deploy under a different path, run `BASE_PATH=/other/ npm run build`.
 
 ### Tests and CI
 
