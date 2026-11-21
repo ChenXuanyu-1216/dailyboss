@@ -282,6 +282,8 @@ export function ArenaFight({ fight, seed, assist, render3D = false, isBoss, onHi
     if (!started || view.won) return;
     const onDown = (e: KeyboardEvent) => {
       if (e.altKey || e.ctrlKey || e.metaKey || isTypingTarget(e.target)) return;
+      // Keep Space available for native activation of a focused button.
+      if (e.code === 'Space' && e.target instanceof HTMLButtonElement) return;
       if (e.key === 'Escape') {
         e.preventDefault();
         if (!e.repeat) (paused ? resume : pause)();

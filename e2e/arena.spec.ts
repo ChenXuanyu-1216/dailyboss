@@ -86,6 +86,18 @@ test.describe('vending machine (open arena)', () => {
     await expect(attack).toHaveAttribute('data-ready', 'true');
   });
 
+  test('Space activates the focused arena attack button', async ({ game, page }) => {
+    await game.openPaused(LEVEL);
+    await game.fightStart.click();
+    const attack = page.getByRole('button', { name: '攻击' });
+
+    await expect(attack).toHaveAttribute('data-ready', 'true');
+    await attack.focus();
+    await page.keyboard.press('Space');
+    await page.clock.runFor(50);
+    await expect(attack).not.toHaveAttribute('data-ready');
+  });
+
   test('draws the floor in 3D with a follow camera, and in 2D with the simplified display', async ({ game, page }) => {
     await page.goto('./');
     await requireWebGL(game);
