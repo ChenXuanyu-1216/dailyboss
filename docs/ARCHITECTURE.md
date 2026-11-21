@@ -64,8 +64,10 @@ React 派发用户事件；界面与场景消费同一份状态。动画完成�
 | src/scenes/SceneHost.tsx | 3D／简化显示切换、错误边界、上下文丢失处理 |
 | src/scenes/SceneCanvas.tsx | 共享 Canvas 设置（像素比上限、按需渲染） |
 | src/scenes/PrinterScene.tsx | 打印机模型与演出 |
-| src/scenes/VendingScene.tsx | 售货机模型与演出（战斗旁的立绘；战斗本身由场地画面绘制） |
-| src/scenes/ArenaScene3D.tsx | 场地战斗的 3D 画面：地面、预警形状、售货机、玩家，跟随镜头 |
+| src/scenes/VendingScene.tsx | 售货机立绘（战斗旁）：与 3D 场地共用 `kit/VendingMachine`，按 cue、结局与 Boss 血量摆姿势（`portraitPose`） |
+| src/scenes/ArenaScene3D.tsx | 场地战斗的 3D 画面：夜间走廊布景、地面预警、售货机与学生、粒子与冲击波、镜头跟随与震动；按 `ArenaFight` 逐帧送来的模拟步（`feed`）触发特效 |
+| src/scenes/arenaAnim.ts | 3D 动画姿势的纯函数（不依赖 Three.js）：售货机的蓄力、跳砸弧线、倾倒与起身、断电、维护，学生的出拳、冲刺、受击；坐标换算 |
+| src/scenes/kit/ | 3D 素材组件：`VendingMachine`（烤漆机身、灯箱、玻璃货架、LCD 表情 `face.ts`）、`Student`（走路、出拳、冲刺、受击、欢呼）、`HazardDecal`（预警形状着色器）、`Fx`（实例化粒子与冲击波）、`Bloom`（仅硬件 GPU）、程序生成的贴图与环境反射 |
 | src/scenes/SceneErrorBoundary.tsx | 3D 画面出错时显示替代内容（立绘与场地共用） |
 | src/scenes/FallbackScene.tsx | WebGL 不可用时的简化显示 |
 | content/levels/*.json | 阶段、行动、数值和文案 |
