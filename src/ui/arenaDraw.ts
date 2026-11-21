@@ -56,6 +56,8 @@ export function drawArena(ctx: CanvasRenderingContext2D, def: ArenaFightDefiniti
   const t = s.t;
 
   ctx.clearRect(0, 0, o.width, o.height);
+  // Not laid out yet (or hidden): nothing sensible to draw, and arc radii would go negative.
+  if (scale < 4) return;
 
   // Floor and a 1-unit grid, so distances read at a glance.
   ctx.fillStyle = C.floor;
@@ -136,7 +138,7 @@ export function drawArena(ctx: CanvasRenderingContext2D, def: ArenaFightDefiniti
     ctx.lineWidth = Math.max(3, scale * 0.22);
     ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.arc(bx, by, r - ctx.lineWidth / 2, a - half, a + half);
+    ctx.arc(bx, by, Math.max(0, r - ctx.lineWidth / 2), a - half, a + half);
     ctx.stroke();
     ctx.lineCap = 'butt';
     // Its back, where hits land.

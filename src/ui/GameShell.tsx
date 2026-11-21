@@ -34,6 +34,8 @@ export function GameShell({ level }: { level: LevelDefinition }) {
   const consoleRef = useRef<HTMLElement>(null);
   const windowRef = useRef<HTMLDivElement>(null);
   const [assist, setAssist] = useState(initialAssist);
+  // Follows the scene host: the arena fight draws in 3D only while the scene does.
+  const [render3D, setRender3D] = useState(false);
   /** Title screen, then the opening story (if the level has one), then the game. Restarts skip both. */
   const [screen, setScreen] = useState<'title' | 'intro' | 'play'>('title');
   const playing = screen === 'play';
@@ -275,7 +277,12 @@ export function GameShell({ level }: { level: LevelDefinition }) {
         <div className="layout">
           <section className="device" aria-label={scene.device}>
             <BossHud title={level.title} health={bossHealth} turnCount={turnCount} lastCost={lastCost} />
-            <SceneHost sceneId={level.sceneId} sceneProps={sceneProps} statusText={statusText} />
+            <SceneHost
+              sceneId={level.sceneId}
+              sceneProps={sceneProps}
+              statusText={statusText}
+              onRender3DChange={setRender3D}
+            />
             <dl className="statusbar">
               <div className="statusbar__item statusbar__item--status">
                 <dt>{UI.status}</dt>
@@ -339,6 +346,7 @@ export function GameShell({ level }: { level: LevelDefinition }) {
                 fight={arenaFight}
                 seed={fightSeed()}
                 assist={assist}
+                render3D={render3D}
                 isBoss={isBossFight}
                 onHit={onFightHit}
                 onWon={onFightWon}
