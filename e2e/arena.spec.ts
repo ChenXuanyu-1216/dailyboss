@@ -99,6 +99,8 @@ test.describe('vending machine (open arena)', () => {
   });
 
   test('draws the floor in 3D with a follow camera, and in 2D with the simplified display', async ({ game, page }) => {
+    // Software WebGL initialization and switching renderers can exceed the usual test budget on CI.
+    test.setTimeout(60_000);
     await page.goto('./');
     await requireWebGL(game);
     await game.open('?level=vending-machine');
