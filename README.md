@@ -12,11 +12,11 @@ An open-source browser game that turns everyday frustrations into boss fights.
 
 ## 中文
 
-浏览器即玩的荒诞生活 Boss 战小游戏：从普通软件界面开始，日常故障逐步升级，界面和 3D 打印机一起进入战斗状态。
+浏览器即玩的荒诞生活 Boss 战小游戏：从普通软件界面开始，日常故障逐步升级，界面和 3D 打印机一起进入战斗状态。第二个 Boss「吞币售货机」换成开放的 3D 场地：你操控角色绕着售货机走位、闪躲、从侧面和背后出手。
 
 ### 当前状态
 
-第一个可运行版本：首关「地狱打印机」可完整游玩，已部署到 GitHub Pages（<https://lachenxuanyu.com/dailyboss/>）。已有浏览器回归测试与 CI。试玩 #1 反馈「按完按钮什么都没发生」，迭代 1 因此加入了 3 回合 Boss 战；试玩 #2 反馈「不需要技巧，按空格填满进度条就能赢」，迭代 2 因此把三个阶段全部改成**实时战斗**：打印机有预警的攻击招式，玩家用四个技能（闪避、格挡、拽出、重启）分别应对（见下文与 [试玩记录](docs/PLAYTEST.md)）。当前迭代 5 已加入极限防御、重拽、个人最佳、Boss 练习和音效，仍需试玩 #6 验证重玩意愿与技巧发现。
+第一个可运行版本：首关「地狱打印机」可完整游玩，已部署到 GitHub Pages（<https://lachenxuanyu.com/dailyboss/>）。已有浏览器回归测试与 CI。试玩 #1 反馈「按完按钮什么都没发生」，迭代 1 因此加入了 3 回合 Boss 战；试玩 #2 反馈「不需要技巧，按空格填满进度条就能赢」，迭代 2 因此把三个阶段全部改成**实时战斗**：打印机有预警的攻击招式，玩家用四个技能（闪避、格挡、拽出、重启）分别应对（见下文与 [试玩记录](docs/PLAYTEST.md)）。迭代 5 加入了极限防御、重拽、个人最佳、Boss 练习和音效。当前的迭代 6 加入第二个关卡「吞币售货机」：开放场地的实时战斗、3D 跟随视角与触屏摇杆，标题画面可以在两个副本之间选择。两个关卡都仍需试玩 #6 验证（重玩意愿、技巧发现、售货机的手感与手机帧率）。
 
 **已实现并验证**
 
@@ -24,8 +24,11 @@ An open-source browser game that turns everyday frustrations into boss fights.
 - 关卡 JSON 运行时校验，错误以「位置 + 原因」的可读列表展示。
 - 纯函数规则引擎（`useReducer` 接入）：离线 → 队列 → 卡纸 Boss 战，完美／普通／失败结局、重开、无效行动与终局保护、耐心归零优先判负。
 - 协议 v0.4（向后兼容）：关卡可带开场剧情（`intro`）。v0.3 起阶段可以是实时战斗（`fight`），每次被击中扣 1 耐心，打赢后进入 `fight.target`。v0.2 的行动反馈、技巧判定（时机／连打）与阶段强度，以及 v0.1 关卡，都仍可加载。
-- 进入游戏（迭代 4）：标题画面（今日副本、Boss 立绘、关卡路线、开始游戏与辅助模式）→ 可跳过的开场剧情（逐字显示、带插画）→ 第一场战斗。游戏窗口后是深夜的房间背景，灯光随局势变化（故障升级、Boss 战警报、通关天亮、失败变灰）。
+- 进入游戏（迭代 4）：标题画面（选择副本：地狱打印机或吞币售货机；Boss 立绘、关卡路线、开始游戏与辅助模式）→ 可跳过的开场剧情（逐字显示、带插画）→ 第一场战斗。游戏窗口后是深夜的房间背景，灯光随局势变化（故障升级、Boss 战警报、通关天亮、失败变灰）。
 - 重玩理由与技巧空间（迭代 5）：Boss 战加入两个进阶技巧——纸快落地时才闪开、墨粉喷出前一刻才格挡，打印机会在你脚下提前露出破绽；按住 ↑ 重拽，伤害 +1，但按住时不能移动，弱点先缩回会被夹手。结算显示通关时间、被击中次数、个人最佳（本机保存，辅助模式不计入）和一条改进建议；到达过 Boss 后可以直接 Boss 练习。实时合成的音效（可关闭）。背景有秒针、热气、窗外灯光等小动效，有 GPU 时 Boss 战还有警报扫光。
+- 第二个 Boss：吞币售货机（迭代 6，`content/levels/vending-machine.json`）。开放场地的纯函数模拟（`src/game/arena.ts`，模拟在 2D 地面上，3D 只负责画）：自由移动、攻击、冲刺（短暂无敌、有冷却）。售货机正面有装甲，只有侧面和背后能打中，打中后它会转身格挡。招式都有地面预警：吐硬币（扇形）、汽水水洼、跳砸、贴身摇晃、朝你倒下（倒地后顶上的饮料成为弱点），以及「系统维护」回血（跑到发光的插座边拔电源打断）。三场战斗（`src/game/arenaFights.ts`）：热身 1 教移动与从背后打，热身 2 教冲刺与拔电源，Boss 战三个形态。脚本玩家平衡测试：反应 350 ms 三场零失误通关，Boss 战约 52 秒；站着不动、正面狂按、反应 900 ms 都会输。
+- 售货机的画面与操作：固定斜俯视、跟随玩家的 3D 场地（夜间走廊、地面预警、粒子与震屏，按 GPU／软件渲染／减少动态效果分级），简化显示或无 WebGL 时退回俯视 2D 画面；售货机 3D 立绘与标题 SVG 立绘。键盘 WASD／方向键移动、J 攻击、K／空格冲刺、Esc 暂停；触屏为虚拟摇杆加攻击、冲刺按钮。
+- 选择副本：标题画面上用单选组（方向键可切换）在两个关卡之间选择，选择写入地址栏 `?level=` 并记在本机；结算页的「换个副本」回到标题画面。
 - 实时战斗（迭代 2）：纯函数、按时间步进的战斗模拟（`src/game/fight.ts`，带种子的随机数，可完全复现）。三条通道；打印机的招式都有预警：纸张砸向发光的通道（闪避 ←/→）、墨粉喷满全屏（按住格挡 ↓，格挡时不能移动）、弱点只在某条通道短暂露出（走过去按 ↑ 拽出，乱拽会被夹手）、「安装更新」充能会回血（按住 K 重启打断，打断后露出大弱点）。两场热身战各教两个技能，Boss 战分三个形态（盖板 → 拔河 → 最后两厘米）逐步叠加招式。初始耐心 5，零失误才是完美结局。
 - 平衡由脚本玩家验证（Vitest）：反应 350 ms 的谨慎玩家在 20 个种子下全部零失误通关；站着不动、狂按拽出、一直格挡、乱按所有键都会耗尽耐心；反应 900 ms 打不过 Boss。零失误的 Boss 战约 1 分钟战斗时间。
 - Boss 战演出：「BOSS 出现」标题卡、Boss 血条、扣耐心时的反击（纸张飞出、震屏、「−1 耐心」）、每回合递增的损伤、胜利打印纸。
@@ -35,11 +38,11 @@ An open-source browser game that turns everyday frustrations into boss fights.
 - 界面随故障逐步异变（警示色、扫描线、轻微扭曲），尊重「减少动态效果」设置。
 - Three.js／React Three Fiber 几何体打印机，按场景注册表加载；WebGL 不可用、上下文丢失或手动切换时使用简化显示，游戏照常可玩。
 - 生产构建使用 GitHub Pages 子路径 `/dailyboss/`。
-- Playwright 浏览器测试（68 项）针对 `/dailyboss/` 下的生产构建运行。页面内的脚本玩家只读取战斗区域渲染出的内容并按真实按键，在 Playwright 假时钟下逐帧打完整局。覆盖三种结局、各技能与暂停、触屏按钮、真实 WebGL、上下文丢失、无 WebGL、手机横竖屏视口与减少动态效果。
+- Playwright 浏览器测试（83 项）针对 `/dailyboss/` 下的生产构建运行。页面内的脚本玩家只读取战斗区域渲染出的内容并按真实按键，在 Playwright 假时钟下逐帧打完整局。覆盖三种结局、各技能与暂停、触屏按钮、真实 WebGL、上下文丢失、无 WebGL、手机横竖屏视口与减少动态效果；售货机有冒烟测试（键盘与触屏摇杆、3D 场地与简化显示、手机布局）和选择副本的测试。
 - 修复：手动切换「简化显示」时误报「3D 渲染中断」。
-- GitHub Pages 部署：迭代 5 与复审修复已随 [PR #9](https://github.com/ChenXuanyu-1216/dailyboss/pull/9) 合入 `main`；[CI 与 Pages 部署](https://github.com/ChenXuanyu-1216/dailyboss/actions/runs/43899974068) 于 2026-11-16 成功。该流程测试生产构建后发布同一份 `dist/`，不等同于线上浏览器回归测试。
+- GitHub Pages 部署：迭代 5 与复审修复已随 [PR #9](https://github.com/ChenXuanyu-1216/dailyboss/pull/9) 合入 `main`；[CI 与 Pages 部署](https://github.com/ChenXuanyu-1216/dailyboss/actions/runs/43899974068) 于 2026-11-16 成功。售货机关卡（模拟、可玩界面、触屏与 3D、3D 美术）随 PR #11–#14 合入 `main`，2026-11-23 检查时线上站点已包含，可用 `?level=vending-machine` 进入。该流程测试生产构建后发布同一份 `dist/`，不等同于线上浏览器回归测试。
 
-**尚未完成**：迭代 5 的试玩 #6、数值调整（2–4 分钟目标）、结局分享、真机（尤其触屏）测试、动画人工验收。详见 [开发路线](docs/ROADMAP.md)。
+**尚未完成**：试玩 #6（两个关卡）、数值调整（2–4 分钟目标）、结局分享、真机（尤其触屏摇杆与两个 WebGL 画布时的帧率）测试、动画人工验收、售货机专属的开场插画、脚本玩家打通售货机整关的浏览器测试。详见 [开发路线](docs/ROADMAP.md)。
 
 ### 运行
 
@@ -58,7 +61,7 @@ npx playwright install chromium   # 首次运行浏览器测试前安装 Chromiu
 npm run test:e2e     # 生产构建 + Playwright 浏览器测试（/dailyboss/）
 ```
 
-调试参数：`?render=simple` 直接使用简化显示；`?assist=1` 开启辅助模式（战斗放慢到 65%，技巧判定自动成功，也可在界面右下角切换）；`?seed=<整数>` 固定战斗随机数；`?level=<id>` 选择已登记的关卡（未知 ID 会显示配置错误页）；`?practice=1` 直接解锁 Boss 练习；`?sfx=0` 静音；`?bg=off|lite|full` 指定背景动效等级；`?fx=0` 关闭战斗粒子和背景动效。如需其他部署路径，可设置 `BASE_PATH=/其他路径/ npm run build`。
+调试参数：`?render=simple` 直接使用简化显示；`?assist=1` 开启辅助模式（战斗放慢到 65%，技巧判定自动成功，也可在界面右下角切换）；`?seed=<整数>` 固定战斗随机数；`?level=<id>` 直接打开已登记的关卡（也可在标题画面选择；未知 ID 会显示配置错误页）；`?practice=1` 直接解锁 Boss 练习；`?sfx=0` 静音；`?bg=off|lite|full` 指定背景动效等级；`?fx=0` 关闭战斗粒子和背景动效。如需其他部署路径，可设置 `BASE_PATH=/其他路径/ npm run build`。
 
 ### 自动化测试与 CI
 
@@ -87,6 +90,7 @@ npm run test:e2e     # 生产构建 + Playwright 浏览器测试（/dailyboss/�
 | 项目 | 内容 |
 | --- | --- |
 | 首关 | Printer From Hell／地狱打印机 |
+| 第二关（迭代 6） | 吞币售货机：开放 3D 场地，吞币 → 找零 → 出货失败 Boss 战 |
 | 目标 | 打印一张纸 |
 | 单局 | 目标 2–4 分钟，待试玩验证 |
 | 初始资源 | 耐心值 5（每被击中一次扣 1） |
@@ -95,7 +99,7 @@ npm run test:e2e     # 生产构建 + Playwright 浏览器测试（/dailyboss/�
 | 风格 | 普通软件界面逐渐异变成 Boss 战 |
 | 平台 | 电脑与手机浏览器，目标部署 GitHub Pages |
 
-首版不包含 AI、账号、后端、数据库、多人模式、排行榜或编辑器。实时战斗刻意保持小而清楚：三条通道、四个技能、每个技能对应一种招式；战斗模拟与规则引擎都是纯函数，动画不决定胜负。
+首版不包含 AI、账号、后端、数据库、多人模式、排行榜或编辑器。打印机的实时战斗刻意保持小而清楚：三条通道、四个技能、每个技能对应一种招式；售货机用开放场地，但同样只有移动、攻击、冲刺三个操作。两种战斗模拟与规则引擎都是纯函数，动画不决定胜负。
 
 ### 固定框架，灵活内容
 
@@ -107,7 +111,7 @@ npm run test:e2e     # 生产构建 + Playwright 浏览器测试（/dailyboss/�
 | 3D 场景适配接口 | 各 Boss 的场景组件与动画 |
 | 重开与简化显示机制 | 新关卡内容 |
 
-同类玩法优先改 JSON；新的 3D Boss 需要场景组件。时机与连打判定可直接在 JSON 中通过 `skill` 使用；已登记的实时战斗通过阶段的 `fight` 使用，新的战斗（招式编排与数值）写在 `src/game/fights.ts` 中并用脚本玩家测试平衡；拖拽、物理等超出既有协议的玩法需要扩展引擎，不承诺只改配置就能实现任意玩法。
+同类玩法优先改 JSON；新的 3D Boss 需要场景组件。时机与连打判定可直接在 JSON 中通过 `skill` 使用；已登记的实时战斗通过阶段的 `fight` 使用，新的战斗（招式编排与数值）写在 `src/game/fights.ts`（三通道）或 `src/game/arenaFights.ts`（开放场地）中，经 `src/game/fightCatalog.ts` 登记（ID 全局唯一），并用脚本玩家测试平衡；拖拽、物理等超出既有协议的玩法需要扩展引擎，不承诺只改配置就能实现任意玩法。
 
 **新增同类关卡**：在 `content/levels/` 添加 JSON，并在 `src/app/levels.ts` 登记；若需要新 Boss 场景，在 `src/scenes/catalog.ts` 声明 sceneId 与支持的 cue，并在 `src/scenes/registry.ts` 注册组件。视觉风格集中在 `src/styles/tokens.css` 的 CSS 变量中。
 
@@ -128,7 +132,7 @@ npm run test:e2e     # 生产构建 + Playwright 浏览器测试（/dailyboss/�
 | `content/levels/*.json` | 关卡内容（阶段、行动、数值、文案） |
 | `src/game/` | 协议类型、配置校验、纯规则引擎、实时战斗模拟与战斗登记、React 接入 |
 | `src/ui/` | 通用 DOM 界面组件与框架文案 |
-| `src/scenes/` | 场景白名单、3D 场景、简化显示 |
+| `src/scenes/` | 场景白名单、3D 场景（打印机、售货机立绘、开放场地）、简化显示 |
 | `src/styles/` | 设计变量与样式 |
 | `tests/` | Vitest 单元测试 |
 | `e2e/` | Playwright 浏览器测试 |
@@ -138,7 +142,7 @@ npm run test:e2e     # 生产构建 + Playwright 浏览器测试（/dailyboss/�
 
 1. [核心架构与接口](docs/ARCHITECTURE.md)：固定边界和内容协议。
 2. [开发阶段与验收](docs/ROADMAP.md)：核心循环 → 完整关卡 → 3D 联动 → 体验与发布。
-3. [关卡配置](content/levels/printer-from-hell.json)：首关的实际运行配置。
+3. 关卡配置：[地狱打印机](content/levels/printer-from-hell.json)、[吞币售货机](content/levels/vending-machine.json) 的实际运行配置。
 4. [试玩记录](docs/PLAYTEST.md)：试玩检查清单与结果模板。
 
 社区 JSON 关卡在 MVP 试玩验证后再推进。关卡中的行动、数值及具体文案是可调整的初始设计。
@@ -147,11 +151,11 @@ npm run test:e2e     # 生产构建 + Playwright 浏览器测试（/dailyboss/�
 
 ## English
 
-An absurd, browser-playable boss fight about everyday life. It starts as an ordinary printing utility; as the faults escalate, the interface and a 3D printer turn the chore into a boss battle.
+An absurd, browser-playable boss fight about everyday life. It starts as an ordinary printing utility; as the faults escalate, the interface and a 3D printer turn the chore into a boss battle. The second boss, a coin-eating vending machine (吞币售货机), moves to an open 3D arena: you steer a character around the machine, dodge, and strike from the sides and back.
 
 ### Status
 
-First runnable version. Level 1, "Printer From Hell" (地狱打印机), is fully playable and deployed to GitHub Pages at <https://lachenxuanyu.com/dailyboss/>. Browser regression tests and CI are in place. Playtest #1 found that "nothing happened" after the buttons were pressed, so Iteration 1 added a 3-round boss fight. Playtest #2 found that it took no skill: you could win by filling a meter with the spacebar. Iteration 2 therefore turns all three phases into **real-time fights**: the printer has telegraphed attacks, and the player answers each one with a specific ability (dodge, block, pull, reset). See below and the [playtest log](docs/PLAYTEST.md). The current Iteration 5 adds precise defence, heavy pulls, personal bests, boss practice and sound; playtest #6 still needs to validate replay interest and whether players discover the techniques. The player-facing text is in Chinese.
+First runnable version. Level 1, "Printer From Hell" (地狱打印机), is fully playable and deployed to GitHub Pages at <https://lachenxuanyu.com/dailyboss/>. Browser regression tests and CI are in place. Playtest #1 found that "nothing happened" after the buttons were pressed, so Iteration 1 added a 3-round boss fight. Playtest #2 found that it took no skill: you could win by filling a meter with the spacebar. Iteration 2 therefore turns all three phases into **real-time fights**: the printer has telegraphed attacks, and the player answers each one with a specific ability (dodge, block, pull, reset). See below and the [playtest log](docs/PLAYTEST.md). Iteration 5 added precise defence, heavy pulls, personal bests, boss practice and sound. The current Iteration 6 adds a second level, the vending machine: a real-time fight in an open arena, a 3D follow camera and a touch joystick, with a level picker on the title screen. Both levels still need playtest #6: replay interest, whether players discover the techniques, how the vending machine feels, and phone frame rate. The player-facing text is in Chinese.
 
 **Implemented and verified**
 
@@ -159,8 +163,16 @@ First runnable version. Level 1, "Printer From Hell" (地狱打印机), is fully
 - Runtime validation of level JSON, with readable errors that give the location and the reason.
 - Pure rule engine wired through `useReducer`: offline → queue → paper-jam boss fight. It handles perfect/normal/failure endings, restart, invalid actions and actions after the game ends. Failure takes precedence when patience hits zero.
 - Protocol v0.4, backward compatible: a level can carry an opening story (`intro`). Since v0.3 a phase can be a real-time `fight`. Each hit taken costs 1 patience, and winning follows `fight.target`. v0.2 levels (feedback text, timing/mash skill checks, intensity) and v0.1 levels still load.
-- Way into the game (Iteration 4): a title screen (today's level, boss portrait, the route through the phases, Start and Assist), then a skippable opening story (typed lines with illustrations), then the first fight. Behind the game window is a room late at night whose lighting follows the game: amber as things go wrong, a red alarm in the boss fight, sunrise after a win, grey after a loss.
+- Way into the game (Iteration 4): a title screen (pick a level, the printer or the vending machine; boss portrait, the route through the phases, Start and Assist), then a skippable opening story (typed lines with illustrations), then the first fight. Behind the game window is a room late at night whose lighting follows the game: amber as things go wrong, a red alarm in the boss fight, sunrise after a win, grey after a loss.
 - Reasons to replay and room for skill (Iteration 5): the boss fight adds two advanced techniques. Step out of the lane just before the sheet lands, or raise the block just before the toner sprays, and the printer exposes an opening under you early. Hold ↑ for a heavy pull worth +1 damage; you can't move while holding, and you get pinched if the weak point retracts first. The results show clear time, hits taken, the personal best (stored in this browser; assist runs don't count) and one tip based on the run. Once you have reached the boss, boss practice starts there directly. Sound effects are synthesised in the browser and can be turned off. The backdrop has small motion (the second hand, steam, city windows), plus an alarm sweep in the boss fight when a GPU is available.
+- Second boss: the vending machine (Iteration 6, `content/levels/vending-machine.json`). A pure open-arena simulation (`src/game/arena.ts`) runs on a 2D floor; 3D only draws it. You move freely, attack, and dash (briefly invulnerable, with a cooldown). The machine's front is armoured, so only hits to its sides and back land, and after a hit it turns and guards. Every attack is warned on the floor:
+  - coins spat in a fan, and soda puddles that linger;
+  - a hop that lands where you stood, and a close-range shake;
+  - a topple toward you; once it is down, the drink on top becomes a weak point;
+  - "system maintenance" heals it unless you run to the glowing socket and pull the plug.
+  Three fights (`src/game/arenaFights.ts`): warm-up 1 teaches moving and hitting from behind, warm-up 2 teaches dashing and pulling the plug, and the boss has three stages. Scripted players check the balance: 350 ms reactions win all three fights without a hit, with a boss fight of about 52 seconds; standing still, mashing at the front, and 900 ms reactions all lose.
+- Vending machine view and controls: a fixed, angled 3D arena camera that follows the player (a night corridor, floor warnings, particles and camera shake, scaled down for software rendering and reduced motion). The simplified display, or no WebGL, falls back to a top-down 2D view. The machine has a 3D portrait and an SVG title portrait. Keyboard: WASD or arrows to move, J to attack, K or Space to dash, Escape to pause. Touch: a virtual stick plus attack and dash buttons.
+- Level picker: a radio group on the title screen (arrow keys switch) chooses between the two levels. The choice goes into `?level=` and is remembered in this browser, and "换个副本" on the result screen goes back to the title.
 - Real-time fights (Iteration 2): a pure, time-stepped simulation (`src/game/fight.ts`) with a seeded RNG, so a seed plus the inputs replays a fight exactly. There are three lanes, and every printer attack is telegraphed. Each one has one answer:
   - paper lands in the lane that glowed: **dodge** with ←/→;
   - toner fills the screen: hold **block** (↓); you can't move while blocking;
@@ -178,18 +190,21 @@ First runnable version. Level 1, "Printer From Hell" (地狱打印机), is fully
 - The interface degrades step by step as faults escalate (warning colors, scanlines, slight distortion) and respects `prefers-reduced-motion`.
 - A primitive-geometry printer built with Three.js / React Three Fiber and loaded through a scene registry. A simplified DOM display takes over when WebGL is unavailable, when the context is lost, or when the player turns it on. The game stays fully playable either way.
 - Production builds use the GitHub Pages subpath `/dailyboss/`.
-- 68 Playwright browser tests run against the production build under `/dailyboss/`. An in-page scripted player reads only what the arena renders and presses real keys, playing whole runs frame by frame under Playwright's fake clock. They cover:
+- 83 Playwright browser tests run against the production build under `/dailyboss/`. An in-page scripted player reads only what the arena renders and presses real keys, playing whole runs frame by frame under Playwright's fake clock. They cover:
   - all three endings, every ability, pausing, and touch controls;
   - real WebGL, context loss and no WebGL;
-  - mobile portrait and landscape viewports, and reduced motion.
+  - mobile portrait and landscape viewports, and reduced motion;
+  - smoke tests for the vending machine (keyboard and touch stick, 3D arena and the simplified display, phone layout) and for the level picker.
 - Fixed: manually switching to the simplified display no longer reports a false "3D rendering interrupted" warning.
-- GitHub Pages deployment: Iteration 5 and its review fixes merged into `main` through [PR #9](https://github.com/ChenXuanyu-1216/dailyboss/pull/9). [CI and the Pages deployment](https://github.com/ChenXuanyu-1216/dailyboss/actions/runs/43899974068) succeeded on 2026-11-16. The workflow tests the production build and publishes that same `dist/`; this is not a browser regression run against the live site.
+- GitHub Pages deployment: Iteration 5 and its review fixes merged into `main` through [PR #9](https://github.com/ChenXuanyu-1216/dailyboss/pull/9). [CI and the Pages deployment](https://github.com/ChenXuanyu-1216/dailyboss/actions/runs/43899974068) succeeded on 2026-11-16. The vending machine level (simulation, playable UI, touch and 3D, 3D art) merged into `main` through PRs #11–#14; a check on 2026-11-23 found it on the live site, reachable with `?level=vending-machine`. The workflow tests the production build and publishes that same `dist/`; this is not a browser regression run against the live site.
 
 **Not done yet:**
-- playtest #6 of Iteration 5, and balance against the 2–4 minute target;
+- playtest #6 of both levels, and balance against the 2–4 minute target;
 - sharing results;
-- real-device testing (especially touch);
-- manual approval of the animations. See the [roadmap](docs/ROADMAP.md).
+- real-device testing (especially the touch stick, and frame rate with two WebGL canvases on the page);
+- manual approval of the animations;
+- opening illustrations made for the vending machine;
+- a browser test where a scripted player beats the whole vending machine level. See the [roadmap](docs/ROADMAP.md).
 
 ### Running it
 
@@ -208,7 +223,7 @@ npx playwright install chromium   # once, before the first browser test run
 npm run test:e2e     # production build + Playwright browser tests (/dailyboss/)
 ```
 
-Debug parameters: `?render=simple` starts in the simplified display. `?assist=1` turns on assist mode, which slows fights to 65% and makes skill checks succeed (there is also a toggle at the bottom right). `?seed=<integer>` fixes the fight RNG. `?level=<id>` picks a registered level; an unknown ID shows the config error page. `?practice=1` unlocks boss practice, `?sfx=0` mutes, `?bg=off|lite|full` picks the backdrop motion level, and `?fx=0` turns off fight particles and backdrop motion. To deploy under a different path, run `BASE_PATH=/other/ npm run build`.
+Debug parameters: `?render=simple` starts in the simplified display. `?assist=1` turns on assist mode, which slows fights to 65% and makes skill checks succeed (there is also a toggle at the bottom right). `?seed=<integer>` fixes the fight RNG. `?level=<id>` opens a registered level directly (the title screen also has a level picker); an unknown ID shows the config error page. `?practice=1` unlocks boss practice, `?sfx=0` mutes, `?bg=off|lite|full` picks the backdrop motion level, and `?fx=0` turns off fight particles and backdrop motion. To deploy under a different path, run `BASE_PATH=/other/ npm run build`.
 
 ### Tests and CI
 
@@ -239,10 +254,10 @@ The site is at **<https://lachenxuanyu.com/dailyboss/>**. The account has a cust
 - **Content** (`content/levels/`): phases, actions, costs, and all level text. React components hold no level dialogue.
 - **Game** (`src/game/`): protocol types, validation, the pure engine, the pure fight simulation and registered fights, and the `useGame` hook. There are no timers or rendering, and the fight's randomness is a seeded generator in its state, so animation never decides an outcome. The UI owns the clock (`performance.now()` deltas) and the input devices. The engine only sees results: a skill check's `success` or `fail`, and a fight's hits and win.
 - **UI** (`src/ui/`): generic, reusable panels and the framework-level labels.
-- **Scenes** (`src/scenes/`): a whitelist of `sceneId` → component, the printer scene, and the fallback display. Scenes only read game state.
+- **Scenes** (`src/scenes/`): a whitelist of `sceneId` → component, the printer scene, the vending machine portrait, the 3D arena, and the fallback display. Scenes only read game state.
 - **Styles** (`src/styles/tokens.css`): colors, spacing, type, borders, and motion as CSS variables. Escalation only re-points these tokens.
 
-**Adding a level with the same mechanics:** add a JSON file under `content/levels/` and register it in `src/app/levels.ts`. A new boss scene also needs its cues declared in `src/scenes/catalog.ts` and a component in `src/scenes/registry.ts`. Timing and mash checks are available from JSON through `skill`, and registered real-time fights through a phase's `fight`. New fights (attack scripts and numbers) live in `src/game/fights.ts` and are balanced against the scripted players. Other new mechanics (drag, physics) need explicit engine changes; there is no scripting system.
+**Adding a level with the same mechanics:** add a JSON file under `content/levels/` and register it in `src/app/levels.ts`. A new boss scene also needs its cues declared in `src/scenes/catalog.ts` and a component in `src/scenes/registry.ts`. Timing and mash checks are available from JSON through `skill`, and registered real-time fights through a phase's `fight`. New fights (attack scripts and numbers) live in `src/game/fights.ts` (three lanes) or `src/game/arenaFights.ts` (open arena), are registered in `src/game/fightCatalog.ts` (IDs are unique across both), and are balanced against the scripted players. Other new mechanics (drag, physics) need explicit engine changes; there is no scripting system.
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (Chinese) for the full protocol and rules.
 
@@ -251,6 +266,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (Chinese) for the full protocol
 | Item | Detail |
 | --- | --- |
 | First level | Printer From Hell / 地狱打印机 |
+| Second level (Iteration 6) | Coin-eating vending machine / 吞币售货机: open 3D arena, paying → change → failed-dispense boss fight |
 | Goal | Print one page |
 | Session | 2–4 minutes target, pending playtests |
 | Starting resource | Patience 5 (each hit costs 1) |
@@ -259,4 +275,4 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (Chinese) for the full protocol
 | Style | An ordinary utility UI mutating into a boss fight |
 | Platforms | Desktop and mobile browsers; GitHub Pages target |
 
-Out of scope for v1: AI, accounts, backend, database, multiplayer, leaderboards, or editors. The real-time fight is deliberately small and readable: three lanes and four abilities, each answering one attack. Both the fight simulation and the rule engine are pure, and animation never decides an outcome.
+Out of scope for v1: AI, accounts, backend, database, multiplayer, leaderboards, or editors. The printer's real-time fight is deliberately small and readable: three lanes and four abilities, each answering one attack. The vending machine uses an open arena but still has only three controls: move, attack and dash. Both fight simulations and the rule engine are pure, and animation never decides an outcome.
