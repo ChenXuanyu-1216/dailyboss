@@ -3,6 +3,7 @@ import {
   Suspense,
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type MouseEvent,
@@ -23,10 +24,12 @@ import {
   type ArenaState,
   type Vec,
 } from '../game/arena';
+import type { ArenaFeedItem } from '../scenes/arenaAnim';
 import { SceneErrorBoundary } from '../scenes/SceneErrorBoundary';
 import { drawArena } from './arenaDraw';
 import { keysVector, knobOffset, stickVector } from './arenaInput';
 import { arenaSoundsFor, sfx } from './audio';
+import { backdropMotion } from './Backdrop';
 import { UI } from './copy';
 import { ASSIST_SPEED } from './FightArena';
 import { usePrefersReducedMotion } from './hooks';
@@ -149,6 +152,12 @@ export function ArenaFight({ fight, seed, assist, render3D = false, isBoss, onHi
   const [failed3D, setFailed3D] = useState(false);
   const on3DFailed = useCallback(() => setFailed3D(true), []);
   const use3D = render3D && !failed3D;
+  /** Effects detail for the 3D view: full (GPU), lite (software rendering), off (reduced motion or ?fx=0). */
+  const quality = useMemo(() => backdropMotion(reducedMotion), [reducedMotion]);
+  /** Simulation steps the 3D view has not drawn yet (it drains this for its effects). */
+  const feed = useRef<ArenaFeedItem[]>([]);
+  const use3DRef = useRef(use3D);
+  use3DRef.current = use3D;
   const winTimer = useRef<number | undefined>(undefined);
   useEffect(() => () => window.clearTimeout(winTimer.current), []);
 
@@ -250,6 +259,7 @@ export function ArenaFight({ fight, seed, assist, render3D = false, isBoss, onHi
         const before = stateRef.current;
         const { state, events } = stepArena(fight, before, input, dt);
         stateRef.current = state;
+        if (use3DRef.current && feed.current.length < 120) feed.current.push({ before, after: state, events });
         sfx.playAll(arenaSoundsFor(before, state, events));
         flushSync(() => {
           setView(state);
@@ -426,7 +436,14 @@ export function ArenaFight({ fight, seed, assist, render3D = false, isBoss, onHi
           <SceneErrorBoundary onError={on3DFailed} fallback={flat}>
             <Suspense fallback={flat}>
               <div className="arena__canvas" role="img" aria-label={UI.arenaFloor} data-testid="arena-3d">
-                <ArenaScene3D def={fight} state={s} reducedMotion={reducedMotion} onContextLost={on3DFailed} />
+                <ArenaScene3D
+                  def={fight}
+                  state={s}
+                  feed={feed}
+                  quality={quality}
+                  reducedMotion={reducedMotion}
+                  onContextLost={on3DFailed}
+                />
               </div>
             </Suspense>
           </SceneErrorBoundary>
