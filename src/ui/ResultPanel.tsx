@@ -68,11 +68,19 @@ export function ResultPanel({
   const textRef = useRef<HTMLTextAreaElement>(null);
   const note = (text: string) => setShareNote((p) => ({ text, n: (p?.n ?? 0) + 1 }));
 
+  const revealShareText = () => {
+    if (showText) {
+      textRef.current?.focus();
+      textRef.current?.select();
+    } else {
+      setShowText(true);
+    }
+  };
   const onShare = async () => {
     if (!shareText) return;
     const result = await shareNatively(shareTitle, shareText);
     if (result === 'shared') note(UI.shareShared);
-    else if (result === 'unsupported') setShowText(true);
+    else if (result === 'unsupported') revealShareText();
   };
   const onCopy = async () => {
     if (!shareText) return;
@@ -187,9 +195,14 @@ export function ResultPanel({
           </button>
         )}
         {shareText && (
-          <button type="button" className="btn btn--ghost" onClick={onShare} data-testid="share" aria-expanded={showText}>
-            {UI.share}
-          </button>
+          <>
+            <button type="button" className="btn btn--ghost" onClick={onShare} data-testid="share" aria-expanded={showText}>
+              {UI.share}
+            </button>
+            <button type="button" className="btn btn--ghost" onClick={revealShareText} aria-expanded={showText}>
+              {UI.shareCopyResult}
+            </button>
+          </>
         )}
       </div>
 

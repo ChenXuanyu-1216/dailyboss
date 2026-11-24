@@ -189,6 +189,7 @@ export const UI = {
   titleBest: (time: string) => `最佳通关 ${time}`,
   // Sharing a result
   share: '分享结果',
+  shareCopyResult: '复制结果',
   shareHead: 'DailyBoss 人生副本',
   shareStats: (label: string, time: string, hits: number) => `${label} ${time} · 被击中 ${hits} 次`,
   shareSpent: (n: number) => `消耗耐心 ${n}`,

@@ -12,12 +12,25 @@ describe('shareUrl', () => {
 });
 
 describe('shareText', () => {
+  it('labels a shared assisted run so it is not mistaken for an unassisted score', () => {
+    const run = { mode: 'full' as const, timeMs: 83_400, hits: 0, assist: true };
+    const text = shareText({
+      levelTitle: '地狱打印机',
+      outcome: 'perfect',
+      endingTitle: '打印成功',
+      run,
+      patienceSpent: 0,
+      url: URL_,
+    });
+    expect(text.split('\n')[0]).toBe('DailyBoss 人生副本 · 地狱打印机（辅助模式）');
+  });
+
   it('a win: level, ending, clear time and hits, a dare, the link', () => {
     const text = shareText({
       levelTitle: '地狱打印机',
       outcome: 'perfect',
       endingTitle: '打印成功',
-      run: { mode: 'full', timeMs: 83_400, hits: 0 },
+      run: { mode: 'full', timeMs: 83_400, hits: 0, assist: false },
       patienceSpent: 0,
       url: URL_,
     });
@@ -35,7 +48,7 @@ describe('shareText', () => {
       levelTitle: '吞币售货机',
       outcome: 'failure',
       endingTitle: '耐心已耗尽',
-      run: { mode: 'full', timeMs: 40_000, hits: 5 },
+      run: { mode: 'full', timeMs: 40_000, hits: 5, assist: false },
       patienceSpent: 5,
       url: URL_,
     });
@@ -49,7 +62,7 @@ describe('shareText', () => {
       levelTitle: '地狱打印机',
       outcome: 'normal',
       endingTitle: '纸有点皱',
-      run: { mode: 'boss', timeMs: 50_000, hits: 1 },
+      run: { mode: 'boss', timeMs: 50_000, hits: 1, assist: false },
       patienceSpent: 1,
       url: URL_,
     });

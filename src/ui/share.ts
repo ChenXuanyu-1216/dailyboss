@@ -8,8 +8,8 @@ export interface ShareInput {
   levelTitle: string;
   outcome: Outcome;
   endingTitle: string;
-  /** Fight levels: the run's time and hits. Older (menu) levels have neither. */
-  run?: { mode: RunMode; timeMs: number; hits: number };
+  /** Fight levels: the run's time, hits and whether assist mode was used. Older (menu) levels have none. */
+  run?: { mode: RunMode; timeMs: number; hits: number; assist: boolean };
   /** Menu levels only: patience spent. */
   patienceSpent: number;
   /** Link back to this level. */
@@ -31,11 +31,12 @@ export function shareText(input: ShareInput): string {
   const { levelTitle, outcome, endingTitle, run, patienceSpent, url } = input;
   const won = outcome !== 'failure';
   const practice = run?.mode === 'boss' ? `（${UI.practiceBadge}）` : '';
+  const assisted = run?.assist ? `（${UI.assist}）` : '';
   const stats = run
     ? UI.shareStats(won ? UI.clearTime : UI.survivedTime, formatTime(run.timeMs), run.hits)
     : UI.shareSpent(patienceSpent);
   return [
-    `${UI.shareHead} · ${levelTitle}${practice}`,
+    `${UI.shareHead} · ${levelTitle}${practice}${assisted}`,
     `${OUTCOME_LABEL[outcome]}：${endingTitle}`,
     stats,
     won ? UI.shareDareWon : UI.shareDareLost,

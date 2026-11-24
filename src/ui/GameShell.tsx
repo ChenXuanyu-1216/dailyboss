@@ -356,7 +356,9 @@ export function GameShell({ level, levels = [], onChooseLevel, levelSwitched = f
                   levelTitle: level.title,
                   outcome: state.outcome,
                   endingTitle: level.endings[state.outcome].title,
-                  run: summary ? { mode: summary.mode, timeMs: summary.timeMs, hits: summary.hits } : undefined,
+                  run: summary
+                    ? { mode: summary.mode, timeMs: summary.timeMs, hits: summary.hits, assist: summary.assist }
+                    : undefined,
                   patienceSpent: state.patienceSpent,
                   url: shareUrl(window.location, level.id),
                 })}

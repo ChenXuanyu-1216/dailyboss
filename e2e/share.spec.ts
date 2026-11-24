@@ -4,8 +4,8 @@ import { expect, test, type GamePage } from './fixtures';
 // Sharing a result: the system share sheet when the browser has one, otherwise copyable text.
 
 /** Loses the first fight quickly (the bot stands still) to reach the result screen. */
-async function reachResult(game: GamePage) {
-  await game.openPaused();
+async function reachResult(game: GamePage, query?: string) {
+  await game.openPaused(query);
   await game.installBot({ idle: true });
   await game.fightStart.click();
   await game.runUntil(async () => (await game.app.getAttribute('data-outcome')) !== null, { stepMs: 1000 });
@@ -85,6 +85,26 @@ test.describe('sharing a result', () => {
     await page.waitForTimeout(100);
     await expect(page.getByTestId('share-box')).toHaveCount(0);
     await expect(page.locator('.result__share-note')).toHaveText('');
+  });
+
+  test('copyable text is still accessible after the native share sheet aborts', async ({ game, page }) => {
+    await stubShare(page, 'abort');
+    await reachResult(game);
+    await page.getByTestId('share').click();
+    await expect(page.getByTestId('share-box')).toHaveCount(0);
+
+    await page.getByRole('button', { name: '复制结果' }).click();
+    const text = page.getByRole('textbox', { name: '分享文字' });
+    await expect(text).toBeFocused();
+    expect(await text.inputValue()).toContain('挑战失败：耐心已耗尽');
+  });
+
+  test('a shared result identifies an assisted run', async ({ game, page }) => {
+    await stubShare(page, 'none');
+    await reachResult(game, 'render=simple&assist=1');
+    await page.getByTestId('share').click();
+    const text = page.getByRole('textbox', { name: '分享文字' });
+    expect((await text.inputValue()).split('\n')[0]).toContain('（辅助模式）');
   });
 });
 
