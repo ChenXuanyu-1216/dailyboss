@@ -7,19 +7,19 @@
     "tagline": "下课只有 10 分钟，你只想买一瓶水。",
     "beats": [
       {
-        "art": "clock",
+        "art": "school-clock",
         "text": "10:50。下一节课 11 点开始，你嗓子快冒烟了。"
       },
       {
-        "art": "document",
+        "art": "coin-slot",
         "text": "走廊尽头有台售货机。你投进了最后一枚硬币。"
       },
       {
-        "art": "error",
+        "art": "insert-coin",
         "text": "「请投币。」硬币没了，饮料也没出来。"
       },
       {
-        "art": "eyes",
+        "art": "vending-eyes",
         "text": "你拍了一下它的侧面。它慢慢转了过来。"
       }
     ]

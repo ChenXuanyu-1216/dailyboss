@@ -119,7 +119,7 @@ React 派发用户事件；界面与场景消费同一份状态。动画完成�
 
 `schemaVersion` 可为 `"0.4"`。v0.4 文件可以使用全部 v0.3 字段，另外：
 
-- Level `intro`（可选）：`{ tagline, beats }`。`tagline` 是标题画面上的一句话简介；`beats` 是开场剧情，1–6 段，每段 `{ text, art? }`，`art` 取 `clock | document | error | eyes`（通用插画，任何关卡都能用）。
+- Level `intro`（可选）：`{ tagline, beats }`。`tagline` 是标题画面上的一句话简介；`beats` 是开场剧情，1–6 段，每段 `{ text, art? }`，`art` 取 `clock | document | error | eyes`（通用插画）或 `school-clock | coin-slot | insert-coin | vending-eyes`（售货机的插画），任何关卡都能用。
 - 没有 `intro` 的关卡不显示开场剧情，标题画面用 `objective` 代替简介。
 - `intro` 出现在 v0.1–v0.3 文件中按未知字段拒绝。
 

@@ -463,6 +463,13 @@ describe('protocol v0.4 intro', () => {
     expect(Object.isFrozen(result.value.intro!.beats[0])).toBe(true);
   });
 
+  it('the vending machine tells its story with its own illustrations', () => {
+    const result = loadLevel('vending-machine');
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.intro?.beats.map((b) => b.art)).toEqual(['school-clock', 'coin-slot', 'insert-coin', 'vending-eyes']);
+  });
+
   it('is optional: a v0.4 level without an intro is valid and has none', () => {
     const raw = rawShipped();
     delete raw.intro;

@@ -120,9 +120,10 @@
 - [ ] 真机试玩：手机上的帧率（页面同时有立绘与场地两个 WebGL 画布）、摇杆手感与按钮大小。
 - [x] 关卡 `vending-machine.json`（`?level=vending-machine` 可玩）与售货机 3D 立绘（`src/scenes/VendingScene.tsx`），无 WebGL 时的 DOM 示意图。
 - [x] 标题画面的关卡选择：同一页面上在「地狱打印机」和「吞币售货机」之间切换（单选组，方向键可切换），选择写入地址栏 `?level=` 并记在本机；结果页可「换个副本」回到标题画面。售货机的标题立绘（SVG）。
-- [ ] 售货机专属的开场插画（目前沿用通用插画）。
+- [x] 售货机专属的开场插画（`src/ui/IntroSequence.tsx`）：10:50 的教室挂钟和上课铃、硬币投进投币口、显示「请投币 余额 ¥0.00」的屏幕、转过身来露出愤怒表情的售货机。协议 v0.4 的 `art` 新增 `school-clock | coin-slot | insert-coin | vending-eyes`（任何关卡都能用）。
 - [x] 浏览器冒烟测试（`e2e/arena.spec.ts`：URL 进入、键盘移动与暂停、站着不动会被击中、3D 立绘渲染、触屏摇杆与攻击按钮、手机尺寸布局、3D 场地与切换到简化显示、减少动态效果下的 3D）。
-- [ ] 脚本玩家打通整关的浏览器测试，真机试玩（帧率、触屏摇杆手感）。
+- [x] 脚本玩家打通整关的浏览器测试（`e2e/arena.spec.ts`）：Vitest 平衡测试用的谨慎玩家（`tests/arenaBot.ts`）被打包进页面（`e2e/arenaPageBot.ts`），在假时钟下逐帧用真实按键（WASD 八方向、J、K）打完三场战斗并通关。场地画在 canvas 上，所以页面只在 `?probe=1` 时把战斗状态发布到 `window.__arenaProbe` 供它读取。
+- [ ] 真机试玩（帧率、触屏摇杆手感）。
 
 ## 后续
 

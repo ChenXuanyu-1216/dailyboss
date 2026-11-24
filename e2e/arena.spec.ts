@@ -1,4 +1,5 @@
 import { expect, requireWebGL, test } from './fixtures';
+import { fileURLToPath } from 'node:url';
 
 // Boss #2 (the vending machine) in a real browser: reachable by URL, an open-arena fight the
 // player walks around in with the keyboard. Runs under the fake clock with a fixed seed.
@@ -158,5 +159,56 @@ test.describe('vending machine with reduced motion', () => {
     await page.keyboard.down('KeyA');
     await expect.poll(async () => Number(await game.fight.getAttribute('data-player-x'))).toBeLessThan(x0 - 0.5);
     await page.keyboard.up('KeyA');
+  });
+});
+
+test.describe('vending machine opening story', () => {
+  test.use({ reducedMotion: 'reduce' });
+
+  test('tells its own story with its own illustrations', async ({ game, page }) => {
+    await page.goto('./?level=vending-machine&render=simple&fx=0');
+    await game.titleStart.click();
+    for (const art of ['school-clock', 'coin-slot', 'insert-coin', 'vending-eyes']) {
+      await expect(game.intro).toHaveAttribute('data-art', art);
+      await expect(game.intro.locator(`.intro__art .intro-art--${art}`)).toBeVisible();
+      await page.keyboard.press('Enter');
+    }
+    await expect(game.intro).toHaveCount(0);
+    await expect(game.fight).toHaveAttribute('data-fight-id', 'vending-pay');
+  });
+});
+
+test.describe('vending machine, whole level', () => {
+  let botScript = '';
+
+  test.beforeAll(async () => {
+    // Bundle the in-page player (e2e/arenaPageBot.ts + tests/arenaBot.ts + the simulation) once.
+    const { build } = await import('rolldown');
+    const out = await build({
+      input: fileURLToPath(new URL('./arenaPageBot.ts', import.meta.url)),
+      write: false,
+      output: { format: 'iife' },
+      logLevel: 'silent',
+    });
+    botScript = out.output[0].code;
+  });
+
+  test('a scripted player beats all three fights with the keyboard', async ({ game, page }) => {
+    // About two minutes of fight time, stepped frame by frame under the fake clock.
+    test.setTimeout(180_000);
+    await game.openPaused(`${LEVEL}&probe=1`);
+    await page.addScriptTag({ content: botScript });
+    await page.evaluate(() => (window as unknown as { installArenaBot: () => void }).installArenaBot());
+
+    for (const [i, title] of ['吞币', '找零中', '出货失败：最终 Boss'].entries()) {
+      await expect(game.phaseTitle).toHaveText(title);
+      await expect(game.fight).toHaveAttribute('data-fight-id', ['vending-pay', 'vending-change', 'vending-boss'][i]!);
+      await game.clearFight();
+    }
+
+    await expect(game.app).toHaveAttribute('data-outcome', /^(perfect|normal)$/);
+    await expect(game.resultTitle).toHaveText(/^(你买到了一瓶水|饮料出来了)$/);
+    const patience = Number((await game.patience.textContent())!.match(/(\d+) \/ 5/)![1]);
+    expect(patience, 'a careful player takes at most a couple of hits').toBeGreaterThanOrEqual(3);
   });
 });
