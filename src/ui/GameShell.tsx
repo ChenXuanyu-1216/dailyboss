@@ -21,6 +21,7 @@ import { PatienceMeter } from './PatienceMeter';
 import { ResultPanel, type RunSummary } from './ResultPanel';
 import { loadRecords, markReachedBoss, recordWin, type RunMode } from './records';
 import { addArenaFrame, addFrame, arenaTip, emptyStats, improvementTip, totalHits } from './runStats';
+import { shareText as buildShareText, shareUrl } from './share';
 import { SkillChallenge } from './SkillChallenge';
 import { TitleScreen } from './TitleScreen';
 
@@ -350,6 +351,15 @@ export function GameShell({ level, levels = [], onChooseLevel, levelSwitched = f
                 onRestart={restart}
                 onSwitchMode={canPractice ? switchMode : undefined}
                 onChangeLevel={onChooseLevel && levels.length > 1 ? () => onChooseLevel(level.id) : undefined}
+                shareTitle={`${UI.shareHead} · ${level.title}`}
+                shareText={buildShareText({
+                  levelTitle: level.title,
+                  outcome: state.outcome,
+                  endingTitle: level.endings[state.outcome].title,
+                  run: summary ? { mode: summary.mode, timeMs: summary.timeMs, hits: summary.hits } : undefined,
+                  patienceSpent: state.patienceSpent,
+                  url: shareUrl(window.location, level.id),
+                })}
               />
             ) : arenaFight ? (
               <ArenaFight

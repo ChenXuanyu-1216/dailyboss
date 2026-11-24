@@ -53,7 +53,8 @@ React 派发用户事件；界面与场景消费同一份状态。动画完成�
 | src/ui/FightArena.tsx | 战斗区域：时钟、键盘与触屏输入、渲染，向上报告被击中与胜利 |
 | src/ui/fightEffects.ts | 战斗粒子特效（墨粉云、墨渍、碎纸、火花、伤害数字）：只读取战斗状态与事件，不影响规则 |
 | src/ui/FightFxLayer.tsx | 特效 canvas 层：自有动画循环、尺寸适配、按绘制耗时自动降低粒子数量；减少动态效果或 `?fx=0` 时不挂载 |
-| src/ui/ResultPanel.tsx | 结局、通关时间、被击中、个人最佳、改进建议、重开与 Boss 练习切换 |
+| src/ui/ResultPanel.tsx | 结局、通关时间、被击中、个人最佳、改进建议、重开与 Boss 练习切换、分享结果 |
+| src/ui/share.ts | 分享文字与链接（纯函数）、系统分享面板与复制到剪贴板 |
 | src/ui/runStats.ts | 本局统计（由战斗事件累计）、时间格式与改进建议（纯函数） |
 | src/ui/records.ts | 个人最佳与 Boss 练习解锁，存于本机 localStorage，所有读写均容错 |
 | src/ui/audio.ts | Web Audio 实时合成的音效与声音开关；`soundsFor` 把战斗状态变化与事件映射为音效（纯函数） |
