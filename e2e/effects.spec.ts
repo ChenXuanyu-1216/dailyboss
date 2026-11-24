@@ -12,7 +12,8 @@ async function coverage(page: import('@playwright/test').Page): Promise<number> 
 }
 
 test('the particle layer covers the arena, ignores input, and draws fight events', async ({ game, page }) => {
-  test.setTimeout(90_000);
+  // Software-rendered canvas frames can exceed the local budget on slower shared CI runners.
+  test.setTimeout(process.env.CI ? 180_000 : 90_000);
   await game.openPaused('render=simple', { fx: true });
   await game.installBot();
   await game.fightStart.click();

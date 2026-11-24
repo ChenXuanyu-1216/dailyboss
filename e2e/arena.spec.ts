@@ -195,7 +195,8 @@ test.describe('vending machine, whole level', () => {
 
   test('a scripted player beats all three fights with the keyboard', async ({ game, page }) => {
     // About two minutes of fight time, stepped frame by frame under the fake clock.
-    test.setTimeout(180_000);
+    // CI runs have completed near the three-minute wall-clock budget; allow slower software rendering.
+    test.setTimeout(process.env.CI ? 300_000 : 180_000);
     await game.openPaused(`${LEVEL}&probe=1`);
     await page.addScriptTag({ content: botScript });
     await page.evaluate(() => (window as unknown as { installArenaBot: () => void }).installArenaBot());

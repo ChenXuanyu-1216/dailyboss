@@ -1,8 +1,9 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { EndingDefinition, Outcome } from '../game/contracts';
 import { OUTCOME_LABEL, UI } from './copy';
 import type { Best, RunMode } from './records';
 import { formatTime } from './runStats';
+import { copyText, shareNatively } from './share';
 
 /** A fight run's numbers (levels with fights only). */
 export interface RunSummary {
@@ -36,6 +37,10 @@ interface Props {
   onSwitchMode?: () => void;
   /** Back to the title screen to pick another level; absent when there is only one. */
   onChangeLevel?: () => void;
+  /** Text of a shared result (see ./share.ts); absent: no share button. */
+  shareText?: string;
+  /** Title for the system share sheet. */
+  shareTitle?: string;
 }
 
 export function ResultPanel({
@@ -49,12 +54,50 @@ export function ResultPanel({
   onRestart,
   onSwitchMode,
   onChangeLevel,
+  shareText,
+  shareTitle = '',
 }: Props) {
   const buttonRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     buttonRef.current?.focus();
   }, []);
   const won = outcome !== 'failure';
+  /** Copyable text is shown when the browser can't share (or sharing failed). */
+  const [showText, setShowText] = useState(false);
+  const [shareNote, setShareNote] = useState<{ text: string; n: number } | null>(null);
+  const textRef = useRef<HTMLTextAreaElement>(null);
+  const note = (text: string) => setShareNote((p) => ({ text, n: (p?.n ?? 0) + 1 }));
+
+  const revealShareText = () => {
+    if (showText) {
+      textRef.current?.focus();
+      textRef.current?.select();
+    } else {
+      setShowText(true);
+    }
+  };
+  const onShare = async () => {
+    if (!shareText) return;
+    const result = await shareNatively(shareTitle, shareText);
+    if (result === 'shared') note(UI.shareShared);
+    else if (result === 'unsupported') revealShareText();
+  };
+  const onCopy = async () => {
+    if (!shareText) return;
+    if (await copyText(shareText)) {
+      note(UI.shareCopied);
+    } else {
+      textRef.current?.focus();
+      textRef.current?.select();
+      note(UI.shareCopyFailed);
+    }
+  };
+  // Once shown, the text is selected so Ctrl+C / long-press copies it straight away.
+  useEffect(() => {
+    if (!showText) return;
+    textRef.current?.focus();
+    textRef.current?.select();
+  }, [showText]);
   const recorded = run && won && !run.assist;
 
   return (
@@ -151,7 +194,40 @@ export function ResultPanel({
             {UI.changeLevel}
           </button>
         )}
+        {shareText && (
+          <>
+            <button type="button" className="btn btn--ghost" onClick={onShare} data-testid="share" aria-expanded={showText}>
+              {UI.share}
+            </button>
+            <button type="button" className="btn btn--ghost" onClick={revealShareText} aria-expanded={showText}>
+              {UI.shareCopyResult}
+            </button>
+          </>
+        )}
       </div>
+
+      {shareText && showText && (
+        <div className="result__share" data-testid="share-box">
+          <label className="result__share-label" htmlFor="share-text">
+            {UI.shareTextLabel}
+          </label>
+          <textarea
+            ref={textRef}
+            id="share-text"
+            className="result__share-text"
+            readOnly
+            rows={shareText.split('\n').length}
+            value={shareText}
+            onFocus={(e) => e.currentTarget.select()}
+          />
+          <button type="button" className="btn btn--primary result__share-copy" onClick={onCopy}>
+            {UI.shareCopy}
+          </button>
+        </div>
+      )}
+      <p className="result__share-note" role="status" aria-live="polite">
+        <span key={shareNote?.n}>{shareNote?.text ?? ''}</span>
+      </p>
     </section>
   );
 }
