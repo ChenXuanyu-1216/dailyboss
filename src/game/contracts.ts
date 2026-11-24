@@ -113,11 +113,30 @@ export interface LevelDefinition {
 }
 
 /**
- * v0.4: illustrations a story beat can show. Deliberately generic (not tied to one boss) so any
- * everyday-frustration level can use them; drawn by src/ui/IntroSequence.tsx.
+ * v0.4: illustrations a story beat can show, drawn by src/ui/IntroSequence.tsx. The first four
+ * are generic (any everyday-frustration level can use them); the rest belong to one boss but any
+ * level may still pick them.
  */
-export type IntroArt = 'clock' | 'document' | 'error' | 'eyes';
-export const INTRO_ARTS: readonly IntroArt[] = ['clock', 'document', 'error', 'eyes'];
+export type IntroArt =
+  | 'clock'
+  | 'document'
+  | 'error'
+  | 'eyes'
+  // the vending machine
+  | 'school-clock'
+  | 'coin-slot'
+  | 'insert-coin'
+  | 'vending-eyes';
+export const INTRO_ARTS: readonly IntroArt[] = [
+  'clock',
+  'document',
+  'error',
+  'eyes',
+  'school-clock',
+  'coin-slot',
+  'insert-coin',
+  'vending-eyes',
+];
 export const MAX_INTRO_BEATS = 6;
 
 export interface IntroBeat {

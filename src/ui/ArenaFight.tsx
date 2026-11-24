@@ -43,6 +43,22 @@ const VICTORY_MS = 1100;
 /** How far (px) the thumb travels from the stick's centre for full speed. */
 const STICK_RADIUS = 44;
 
+/**
+ * `?probe=1`, for browser tests only: publish the fight and its latest state on
+ * `window.__arenaProbe` every frame. The floor is drawn on a canvas, so this is how a scripted
+ * player in the page (e2e/arenaPageBot.ts) sees the warnings a person would see. Off by default.
+ */
+const PROBE = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('probe') === '1';
+
+export interface ArenaProbe {
+  fight: ArenaFightDefinition;
+  state: ArenaState;
+}
+
+function publishProbe(fight: ArenaFightDefinition, state: ArenaState) {
+  (window as unknown as { __arenaProbe?: ArenaProbe }).__arenaProbe = { fight, state };
+}
+
 /** The 3D view of the floor; lazy, so Three.js stays out of the main bundle. */
 const ArenaScene3D = lazy(() => import('../scenes/ArenaScene3D'));
 
@@ -245,6 +261,7 @@ export function ArenaFight({ fight, seed, assist, render3D = false, isBoss, onHi
   useEffect(() => {
     if (!running) return;
     let raf = 0;
+    if (PROBE) publishProbe(fight, stateRef.current);
     const frame = (now: number) => {
       const prev = lastFrame.current;
       lastFrame.current = now;
@@ -259,6 +276,7 @@ export function ArenaFight({ fight, seed, assist, render3D = false, isBoss, onHi
         const before = stateRef.current;
         const { state, events } = stepArena(fight, before, input, dt);
         stateRef.current = state;
+        if (PROBE) publishProbe(fight, state);
         if (use3DRef.current && feed.current.length < 120) feed.current.push({ before, after: state, events });
         sfx.playAll(arenaSoundsFor(before, state, events));
         flushSync(() => {

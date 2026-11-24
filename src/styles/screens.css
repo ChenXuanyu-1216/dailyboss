@@ -605,7 +605,8 @@
   transition: background-color 0.6s ease;
 }
 
-.intro[data-art='eyes'] .intro__stage {
+.intro[data-art='eyes'] .intro__stage,
+.intro[data-art='vending-eyes'] .intro__stage {
   background: radial-gradient(ellipse 60% 60% at 50% 45%, #3a0d12, #05060a 75%);
 }
 
@@ -717,8 +718,78 @@
   animation: intro-eyes 1.4s 0.3s cubic-bezier(0.3, 1.6, 0.5, 1) both;
 }
 
-.intro-art--eyes {
+.intro-art--eyes,
+.intro-art--vending-eyes {
   animation: intro-glow 1.6s 1.4s ease-in-out infinite alternate;
+}
+
+/* vending machine */
+.intro-art__tick--school {
+  transform-origin: 60px 75px;
+}
+
+.intro-art__bell {
+  transform-box: fill-box;
+  transform-origin: 50% 0;
+  animation: intro-bell 0.18s ease-in-out 6 alternate;
+}
+
+.intro-art__coin {
+  animation: intro-coin 1.1s 0.3s cubic-bezier(0.5, 0, 0.9, 0.5) both;
+}
+
+.intro-art--insert-coin {
+  animation: intro-shake 0.5s 0.35s ease-in-out both;
+}
+
+.intro-art__lcd {
+  animation: intro-blink 1s steps(1, end) 0.9s infinite;
+}
+
+.intro-art__turn {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: intro-turn 1.1s var(--ease-out) both;
+}
+
+@keyframes intro-bell {
+  from {
+    transform: rotate(-12deg);
+  }
+  to {
+    transform: rotate(12deg);
+  }
+}
+
+@keyframes intro-coin {
+  0% {
+    transform: translateY(-14px);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  70% {
+    transform: translateY(42px);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(52px);
+    opacity: 0;
+  }
+}
+
+@keyframes intro-blink {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+@keyframes intro-turn {
+  from {
+    transform: scaleX(0.35) skewY(-6deg);
+    filter: brightness(0.5);
+  }
 }
 
 @keyframes intro-in {
