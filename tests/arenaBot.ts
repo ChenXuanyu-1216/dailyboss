@@ -222,6 +222,21 @@ export function arenaSkilledPolicy(def: ArenaFightDefinition, reactionMs = 250, 
   };
 }
 
+/**
+ * Plays `policy` the way a person on a keyboard does: the stick direction snaps to the 8 WASD
+ * directions, and `dash` is dropped unless `dash` is true (many players never use it).
+ */
+export function arenaKeyboardPolicy(policy: ArenaPolicy, { dash = true }: { dash?: boolean } = {}): ArenaPolicy {
+  const snap = (v: number) => (v > 0.38 ? 1 : v < -0.38 ? -1 : 0);
+  return (s, mem) => {
+    const r = policy(s, mem);
+    const x = snap(r.move.x);
+    const y = snap(r.move.y);
+    const n = Math.hypot(x, y) || 1;
+    return { move: { x: x / n, y: y / n }, commands: dash ? r.commands : r.commands.filter((c) => c !== 'dash') };
+  };
+}
+
 /** Never touches anything. */
 export const arenaIdlePolicy: ArenaPolicy = () => ({ move: STILL, commands: [] });
 

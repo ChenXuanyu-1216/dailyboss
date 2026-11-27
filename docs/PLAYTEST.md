@@ -167,3 +167,30 @@ Written feedback from a few friends after playing the Iteration 4 build, passed 
 **据此做出的改动 / Changes made in response**（迭代 5，见 [ROADMAP.md](ROADMAP.md)）：Boss 战加入两个进阶技巧：纸快落地时才闪开、或墨粉喷出前一刻才格挡，打印机会在你脚下提前露出破绽（下一次卡纸随之跳过，所以只加快节奏、不增加总伤害）；按住 ↑ 可以重拽，伤害 +1，但按住时不能移动，弱点先缩回会被夹手。两场热身战保持不变。结算改为显示通关时间、被击中次数、个人最佳、用了几次进阶技巧，以及一条根据本局数据给出的改进建议；到达过 Boss 后可以直接进行 Boss 练习。加入实时合成的音效和声音开关。背景重新加入动效（秒针、热气、窗外灯光、截止日期圈，以及有 GPU 时的警报扫光和琥珀闪烁）。车道分隔线和小字对比度提高。第 3、4 条和可选高难度变体留待后续。是否解决问题，需要试玩 #6 验证。
 
 The boss fight gains two advanced techniques: step out of the lane just before the sheet lands, or raise the block just before the toner sprays, and the printer exposes an opening under you early (the next jam is skipped, so the pace speeds up but total damage stays the same); hold ↑ for a heavy pull worth +1 damage, but you can't move while holding and get pinched if the weak point retracts first. The two warm-up fights are unchanged. The results now show clear time, hits taken, the personal best, how often the advanced techniques were used, and one tip based on the run; once the boss has been reached, boss practice starts straight at the boss. Synthesised sound effects arrive with a sound toggle. The backdrop moves again (the second hand, steam, city windows, the deadline ring, and with a GPU the alarm sweep and amber flicker). Lane lines and small text have more contrast. Points 3 and 4 and an optional harder variant are left for later. Whether this works needs playtest #6.
+
+### 试玩 #6 — 2026-11-26 前后（由作者于 2026-11-26 转述）/ around 2026-11-26 (reported by the owner on 2026-11-26)
+
+作者的一位朋友试玩了带关卡选择的版本，作者转述了一句反馈。没有按模板记录，下列未知项如实标为「未记录」。试玩 #6 原本要验证的其他问题（极限防御与重拽是否被发现、开场节奏、音效、背景、真机帧率）这次都没有涉及，仍待验证。
+
+A friend of the owner played the build with the level picker; the owner passed on one sentence of feedback. It was not recorded with the template; unknown fields are marked "not recorded". The other questions playtest #6 was meant to answer (whether the precise defence and heavy pull are discovered, the opening pacing, sound, backdrop, phone frame rate) were not covered and remain open.
+
+- 玩家人数 Players: 1
+- 设备 / 浏览器 Device / browser: 未记录 / not recorded
+- 屏幕方向 Orientation: 未记录 / not recorded
+- 显示模式 Display: 未记录 / not recorded
+- 首局用时 First-run completion time: 未记录 / not recorded
+- 首局结局 First-run outcome: 未记录；未能打过售货机 Boss / not recorded; did not get past the vending machine boss
+- 令人困惑的选项或反馈 Confusing choices or feedback: 未报告 / none reported
+- 是否注意到故障升级 Escalation noticeable?: 未记录 / not recorded
+- 是否想再玩 Wanted to replay?: 未记录 / not recorded
+- 观察到的问题 Observed bugs: 未报告 / none reported
+- 其他备注 Other notes:
+  1. 吞币售货机的最终 Boss（第三场战斗）「极难通过，几乎不可能」。/ The vending machine's final boss (its third fight) is "extremely difficult to get past, practically impossible".
+
+**原因分析 / What the numbers showed**：用脚本玩家在 20 个种子下比较（`tests/arenaBot.ts`）。会冲刺的谨慎玩家几乎都能赢，但只用 WASD 走、不冲刺的玩家在 450–750 ms 的反应下 20 局只赢 2–3 局；同样反应下打印机 Boss 在 650 ms 时仍是 20/20。几乎所有被击中都来自两个招式：摇晃（半径 2.8，而攻击要站在约 2.1 以内）和跳砸（落在你站的位置），预警只有 750–850 ms，扣掉人的反应时间后只剩 200–350 ms 走出去。
+
+Scripted players compared over 20 seeds (`tests/arenaBot.ts`). A careful player who dashes nearly always wins, but one who only walks with WASD and never dashes wins just 2–3 of 20 runs at 450–750 ms reactions; the printer boss is still 20/20 at 650 ms. Almost every hit came from two moves: the rattle (radius 2.8, while attacking means standing within about 2.1) and the hop (lands where you stand), warned only 750–850 ms ahead, which leaves 200–350 ms to walk clear after a human reaction.
+
+**据此做出的改动 / Changes made in response**：Boss 的摇晃与跳砸预警按形态改为 1050 → 1000 → 950 ms（原 750–850 ms），摇晃半径 2.8 → 2.6；其他招式、血量和热身战不变。结果：不冲刺的键盘玩家在 550 ms 反应下 20 局全胜、650 ms 下 18 局胜，900 ms 起会输；会冲刺的玩家 900 ms 仍能赢，1100 ms 起全输；从不躲避仍然会输。新的平衡测试固定了这些结论。是否解决问题，需要这位朋友再试一次。
+
+The boss's rattle and hop warnings are now 1050 → 1000 → 950 ms by stage (were 750–850 ms), and the rattle's radius is 2.6 (was 2.8); other moves, HP and the warm-ups are unchanged. A keyboard player who never dashes now wins all 20 runs at 550 ms reactions and 18 at 650 ms, and loses from 900 ms; one who dashes still wins at 900 ms and loses every run from 1100 ms; never dodging still loses. New balance tests pin these down. Whether this fixes it needs the friend to try again.
