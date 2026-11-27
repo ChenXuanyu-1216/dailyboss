@@ -1211,20 +1211,24 @@
   }
 }
 
-/* ---------- full window: a started open-arena fight covers the whole browser window ---------- */
+/* ---------- full window: a started fight covers the whole browser window ---------- */
 
 /*
- * ArenaFight portals the started fight into .app as .fight--full. The page behind it (window and
- * backdrop) is hidden, so only the fight is drawn and nothing behind it can be focused or scrolled.
- * The HUD floats over the floor: the machine's health as a long bar across the top, the patience
- * bar over the player (drawn in the scene), the stick and buttons in the bottom corners.
+ * ArenaFight and FightArena portal the started fight into .app as .fight--full (shared pieces in
+ * src/ui/FightFullWindow.tsx). The page behind it (window and backdrop) is hidden, so only the
+ * fight is drawn and nothing behind it can be focused or scrolled. The enemy's health runs as a
+ * long bar across the top and the patience bar sits over the player.
+ *   open arena (data-kind='arena'): the HUD floats over the floor, the stick and buttons in the
+ *     bottom corners, the patience bar drawn in the scene;
+ *   printer lanes (data-kind='lanes'): HUD, lanes and the button row stacked, the lanes as wide
+ *     as reads well, the patience pips over the player in the DOM.
  */
-:root:has(.app[data-arena-full]) {
+:root:has(.app[data-fight-full]) {
   overflow: hidden;
 }
 
-.app[data-arena-full] > .window,
-.app[data-arena-full] > .backdrop {
+.app[data-fight-full] > .window,
+.app[data-fight-full] > .backdrop {
   visibility: hidden;
 }
 
@@ -1258,7 +1262,7 @@
 }
 
 /* top: the machine's health across the whole width */
-.arena-hud {
+.fight-hud {
   position: absolute;
   top: 0;
   left: 0;
@@ -1273,18 +1277,18 @@
   pointer-events: none;
 }
 
-.arena-hud > * {
+.fight-hud > * {
   pointer-events: auto;
 }
 
-.arena-hud__boss {
+.fight-hud__boss {
   flex: 1;
   min-width: 0;
   display: grid;
   gap: 5px;
 }
 
-.arena-hud__name {
+.fight-hud__name {
   display: flex;
   align-items: baseline;
   gap: var(--sp-2);
@@ -1292,23 +1296,31 @@
   white-space: nowrap;
 }
 
-.arena-hud__enemy {
+.fight-hud__enemy {
   font-size: var(--fs-sm);
   font-weight: var(--fw-bold);
   letter-spacing: 0.06em;
   color: #fff;
 }
 
-.arena-hud__stage {
+.fight-hud__stage {
   margin: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.fight-hud__label {
+  flex-shrink: 0;
+}
+
+.fight-hud__stage,
+.fight-hud__label {
   font-size: var(--fs-xs);
   font-weight: var(--fw-medium);
   color: rgb(238 242 255 / 0.78);
 }
 
-.arena-hud__bar {
+.fight-hud__bar {
   position: relative;
   height: 14px;
   overflow: hidden;
@@ -1318,7 +1330,7 @@
   box-shadow: 0 0 0 2px rgb(0 0 0 / 0.35);
 }
 
-.arena-hud__fill {
+.fight-hud__fill {
   position: absolute;
   inset: 0;
   transform-origin: left center;
@@ -1326,20 +1338,21 @@
   transition: transform 0.25s ease-out;
 }
 
-.arena-hud__tools {
+.fight-hud__tools {
   display: flex;
   flex: none;
   gap: var(--sp-2);
 }
 
-.fight--full .arena-hud .btn,
+.fight--full .fight-hud .btn,
 .fight--full .fight__paused-more .btn {
   border-color: rgb(255 255 255 / 0.4);
   background: rgb(10 14 26 / 0.6);
   color: #eef2ff;
 }
 
-.fight--full .arena-hud .btn[aria-pressed='true'] {
+.fight--full .fight-hud .btn[aria-pressed='true'],
+.fight--full .fight__paused-more .assist-toggle[aria-pressed='true'] {
   background: rgb(255 255 255 / 0.85);
   color: #0a0e1a;
 }
@@ -1384,7 +1397,7 @@
 }
 
 /* the last call-out, centred above the bottom edge */
-.fight--full .fight__call {
+.fight--full[data-kind='arena'] .fight__call {
   position: absolute;
   left: 50%;
   bottom: calc(max(18px, env(safe-area-inset-bottom)) + 4px);
@@ -1397,7 +1410,7 @@
   pointer-events: none;
 }
 
-.fight--full .fight__call[data-tone='hit'] {
+.fight--full[data-kind='arena'] .fight__call[data-tone='hit'] {
   color: #ff8a8a;
 }
 
@@ -1409,18 +1422,117 @@
 
 .fight__paused-more {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: var(--sp-2);
 }
 
 @media (max-width: 520px) {
-  .fight--full .fight__call {
+  .fight--full[data-kind='arena'] .fight__call {
     bottom: calc(max(18px, env(safe-area-inset-bottom)) + 124px);
     max-width: calc(100% - 32px);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .arena-hud__fill {
+  .fight-hud__fill {
     transition: none;
   }
+}
+
+/* --- printer lanes in the full window --- */
+
+.fight.fight--full[data-kind='lanes'] {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+  background:
+    radial-gradient(90% 60% at 50% 0%, rgb(255 255 255 / 0.07), transparent 70%),
+    #120e0f;
+  color: var(--c-fight-ink);
+}
+
+.fight--full[data-kind='lanes'] .fight-hud {
+  position: relative;
+  align-self: stretch;
+  padding-bottom: 4px;
+  background: none;
+}
+
+.fight--full[data-kind='lanes'] .fight__arena {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+  width: min(calc(100% - 24px), 960px);
+}
+
+/* the printer's front edge, thicker: it is the whole printer now */
+.fight--full[data-kind='lanes'] .fight__lanes::before {
+  height: 22px;
+}
+
+.fight--full[data-kind='lanes'] .fight__slot {
+  top: 7px;
+}
+
+.fight--full[data-kind='lanes'] .fight__controls {
+  width: min(calc(100% - 24px), 720px);
+}
+
+.fight--full[data-kind='lanes'] .fight__ctl {
+  min-height: 60px;
+  border-color: rgb(255 255 255 / 0.4);
+  background: rgb(255 255 255 / 0.07);
+  color: var(--c-fight-ink);
+}
+
+.fight--full[data-kind='lanes'] .fight__ctl[data-active] {
+  background: var(--c-fight-shield);
+  border-color: var(--c-fight-shield);
+  color: #061a33;
+}
+
+.fight--full[data-kind='lanes'] .fight__call {
+  color: var(--c-fight-ink);
+}
+
+/* the toner spray darkens the whole window, not only the lanes */
+.fight--full[data-kind='lanes'][data-toner='active'] {
+  background: #050304;
+}
+
+/* patience over the player (colours: PATIENCE_BAR in src/ui/arenaDraw.ts) */
+.fight-pips {
+  position: absolute;
+  bottom: calc(100% + 20px);
+  left: 50%;
+  display: flex;
+  gap: 3px;
+  padding: 2px;
+  transform: translateX(-50%);
+  border-radius: 3px;
+  background: #060a14;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.6);
+}
+
+.fight-pips__seg {
+  width: 12px;
+  height: 6px;
+  border-radius: 1px;
+  background: #3a4256;
+}
+
+.fight-pips__seg[data-on] {
+  background: #5ee0a0;
+}
+
+.fight-pips[data-last] .fight-pips__seg[data-on] {
+  background: #ff5b5b;
+}
+
+.fight--full .fight-pips__seg {
+  width: 16px;
+  height: 8px;
 }

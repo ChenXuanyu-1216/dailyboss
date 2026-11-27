@@ -232,7 +232,7 @@ test.describe('vending machine fills the window once a fight starts', () => {
     await game.fightStart.click();
     await expect(game.fight).toHaveAttribute('data-fight-id', 'vending-boss');
 
-    const toolbar = page.locator('.arena-hud');
+    const toolbar = page.locator('.fight-hud');
     await toolbar.getByRole('button', { name: '暂停' }).click();
     await toolbar.getByRole('button', { name: '继续' }).click();
     await expect(game.fight).not.toHaveAttribute('data-paused');
@@ -260,14 +260,14 @@ test.describe('vending machine fills the window once a fight starts', () => {
     await expect(page.locator('.window')).toHaveAttribute('inert', '');
 
     // The machine's health: one long bar across the top.
-    const bar = page.getByTestId('arena-boss-bar');
+    const bar = page.getByTestId('fight-boss-bar');
     await expect(bar).toHaveAttribute('aria-valuenow', '100');
     const b = (await bar.boundingBox())!;
     expect(b.y, 'at the top').toBeLessThan(60);
     expect(b.width, 'most of the width').toBeGreaterThan(vp.width * 0.7);
 
     // Patience over the player (drawn on the floor; announced as text) drops when hit.
-    const patience = page.getByTestId('arena-patience');
+    const patience = page.getByTestId('fight-patience');
     await expect(patience).toHaveText('耐心 5 / 5');
     await game.runUntil(async () => (await game.log.count()) >= 1, { stepMs: 500, maxMs: 30_000 });
     await expect(patience).toHaveText('耐心 4 / 5');
@@ -305,7 +305,7 @@ test.describe('vending machine full window on a phone', () => {
     await game.expectNoHorizontalOverflow();
     const stick = (await page.getByTestId('arena-stick').boundingBox())!;
     const attack = (await page.locator('[data-ability="attack"]').boundingBox())!;
-    const bar = (await page.getByTestId('arena-boss-bar').boundingBox())!;
+    const bar = (await page.getByTestId('fight-boss-bar').boundingBox())!;
     for (const r of [stick, attack]) {
       expect(r.x).toBeGreaterThanOrEqual(0);
       expect(r.x + r.width).toBeLessThanOrEqual(390);

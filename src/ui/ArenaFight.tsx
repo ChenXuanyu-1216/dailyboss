@@ -31,6 +31,7 @@ import { keysVector, knobOffset, stickVector } from './arenaInput';
 import { arenaSoundsFor, sfx } from './audio';
 import { backdropMotion } from './Backdrop';
 import { UI } from './copy';
+import { FightHud, PauseExtras, useFullWindow, type FullWindowProps } from './FightFullWindow';
 import { ASSIST_SPEED } from './FightArena';
 import { usePrefersReducedMotion } from './hooks';
 
@@ -62,7 +63,7 @@ function publishProbe(fight: ArenaFightDefinition, state: ArenaState) {
 /** The 3D view of the floor; lazy, so Three.js stays out of the main bundle. */
 const ArenaScene3D = lazy(() => import('../scenes/ArenaScene3D'));
 
-interface Props {
+interface Props extends FullWindowProps {
   fight: ArenaFightDefinition;
   seed: number;
   assist: boolean;
@@ -75,22 +76,6 @@ interface Props {
   onHealth: (health: number) => void;
   /** Every frame's events and the fight time it covered (run statistics). */
   onFrame?: (events: readonly ArenaEvent[], dtMs: number) => void;
-  /** The level's patience, drawn as a bar over the player. */
-  patience?: number;
-  maxPatience?: number;
-  /** The machine's name over the long health bar in the full-window view. */
-  enemyName?: string;
-  /**
-   * Where a started fight is drawn over the whole window (the app root). Without it the fight
-   * stays in its panel. The briefing before each fight always shows in the panel.
-   */
-  fullTarget?: HTMLElement | null;
-  /** Reports whether the fight fills the window (the page behind it is then hidden). */
-  onFullChange?: (full: boolean) => void;
-  /** Sound and restart, offered in the pause menu while the page's own buttons are covered. */
-  soundOn?: boolean;
-  onToggleSound?: () => void;
-  onRestart?: () => void;
 }
 
 type Dir = 'up' | 'down' | 'left' | 'right';
@@ -231,15 +216,7 @@ export function ArenaFight({
 
   const running = started && !paused && !view.won;
   /** Once started, the fight fills the browser window (until it ends and the page moves on). */
-  const full = started && !!fullTarget;
-  const fullChange = useRef(onFullChange);
-  fullChange.current = onFullChange;
-  useEffect(() => {
-    fullChange.current?.(full);
-    // Keyboard focus moves with the fight (Space must dash, not press a focused button).
-    if (full) rootRef.current?.focus({ preventScroll: true });
-    return () => fullChange.current?.(false);
-  }, [full]);
+  const full = useFullWindow(started, fullTarget, onFullChange, rootRef);
 
   const releaseAll = useCallback(() => {
     for (const set of Object.values(held.current)) set.clear();
@@ -483,49 +460,29 @@ export function ArenaFight({
       data-view={use3D ? '3d' : '2d'}
     >
       {full ? (
-        // Full window: the machine's health as one long bar across the top, tools at the right.
-        <header className="arena-hud">
-          <div className="arena-hud__boss">
-            <div className="arena-hud__name">
-              {enemyName && <span className="arena-hud__enemy">{enemyName}</span>}
-              <h2 id="fight-heading" className="arena-hud__stage">
-                {stage?.title ?? UI.fightArena}
-              </h2>
-            </div>
-            <div
-              className="arena-hud__bar"
-              role="progressbar"
-              aria-label={fight.copy.progress}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={Math.round(health * 100)}
-              data-testid="arena-boss-bar"
-            >
-              <span className="arena-hud__fill" style={{ transform: `scaleX(${health})` }} />
-            </div>
-          </div>
-          <div className="arena-hud__tools">
-            <button
-              type="button"
-              className="btn btn--ghost btn--small arena-hud__simple"
-              aria-pressed={!use3D}
-              disabled={!render3D || failed3D}
-              onClick={(event) => {
-                setSimple((v) => !v);
-                // Return pointer users to gameplay. Keyboard users can keep navigating the toolbar.
-                if (event.detail > 0) rootRef.current?.focus({ preventScroll: true });
-              }}
-            >
-              {UI.arenaSimple}
-            </button>
-            {pauseButton}
-          </div>
-          {patience !== undefined && maxPatience !== undefined && (
-            <p className="visually-hidden" data-testid="arena-patience">
-              {UI.patience} {patience} / {maxPatience}
-            </p>
-          )}
-        </header>
+        <FightHud
+          enemyName={enemyName}
+          stageTitle={stage?.title ?? UI.fightArena}
+          label={fight.copy.progress}
+          value={health}
+          patience={patience}
+          maxPatience={maxPatience}
+        >
+          <button
+            type="button"
+            className="btn btn--ghost btn--small fight-hud__simple"
+            aria-pressed={!use3D}
+            disabled={!render3D || failed3D}
+            onClick={(event) => {
+              setSimple((v) => !v);
+              // Return pointer users to gameplay. Keyboard users can keep navigating the toolbar.
+              if (event.detail > 0) rootRef.current?.focus({ preventScroll: true });
+            }}
+          >
+            {UI.arenaSimple}
+          </button>
+          {pauseButton}
+        </FightHud>
       ) : (
       <header className="fight__head">
         <h2 id="fight-heading" className="panel__label">
@@ -651,21 +608,7 @@ export function ArenaFight({
                 Esc
               </kbd>
             </button>
-            {/* The page's title bar is covered in the full-window view: offer its buttons here. */}
-            {full && (onToggleSound || onRestart) && (
-              <div className="fight__paused-more">
-                {onToggleSound && (
-                  <button type="button" className="btn btn--ghost btn--small" aria-pressed={soundOn} onClick={onToggleSound}>
-                    {soundOn ? UI.soundOn : UI.soundOff}
-                  </button>
-                )}
-                {onRestart && (
-                  <button type="button" className="btn btn--ghost btn--small" onClick={onRestart} aria-keyshortcuts="R">
-                    {UI.restartShort}
-                  </button>
-                )}
-              </div>
-            )}
+            {full && <PauseExtras soundOn={soundOn} onToggleSound={onToggleSound} onRestart={onRestart} />}
           </div>
         )}
       </div>
