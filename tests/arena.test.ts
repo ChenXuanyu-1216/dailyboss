@@ -18,6 +18,7 @@ import { ARENA_FIGHTS, ARENA_FIGHT_IDS, getArenaFight } from '../src/game/arenaF
 import {
   FRAME_MS,
   arenaChaosPolicy,
+  arenaKeyboardPolicy,
   arenaIdlePolicy,
   arenaMashPolicy,
   arenaSkilledPolicy,
@@ -380,8 +381,23 @@ describe('arena balance (scripted players, 20 seeds each)', () => {
     expect(avgTime(careful)).toBeLessThan(avgTime(noPlug));
   });
 
-  it('the boss punishes slow reactions: 900 ms reactions lose all patience', () => {
-    for (const r of all(boss, () => arenaSkilledPolicy(boss, 900), PATIENCE)) expect(r.won).toBe(false);
+  it('the boss punishes slow reactions: 1100 ms reactions lose all patience', () => {
+    for (const r of all(boss, () => arenaSkilledPolicy(boss, 1100), PATIENCE)) expect(r.won).toBe(false);
+  });
+
+  // Playtest #6: "practically impossible". Most people walk with WASD and rarely dash, so the boss
+  // must be beatable that way at human reaction times, with dash as the skill that makes it easier.
+  it('a keyboard player who never dashes beats the boss at human reaction times', () => {
+    const walker = (rt: number) => () => arenaKeyboardPolicy(arenaSkilledPolicy(boss, rt), { dash: false });
+    for (const r of all(boss, walker(550), PATIENCE)) expect(r.won).toBe(true);
+    expect(all(boss, walker(650), PATIENCE).filter((r) => r.won).length).toBeGreaterThanOrEqual(16);
+    // Without the dash, slow reactions still lose.
+    expect(all(boss, walker(1000), PATIENCE).filter((r) => r.won).length).toBeLessThanOrEqual(2);
+  });
+
+  it('the dash is worth learning: with it, slower reactions still win', () => {
+    const runs = all(boss, () => arenaKeyboardPolicy(arenaSkilledPolicy(boss, 750)), PATIENCE);
+    expect(runs.every((r) => r.won)).toBe(true);
   });
 
   it('attacking well is not enough: a player who never dodges loses the boss fight', () => {

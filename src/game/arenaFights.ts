@@ -95,7 +95,14 @@ const vendingChange: ArenaFightDefinition = {
   },
 };
 
-/** The boss: three stages; the topple (its signature move) leaves it lying with the bottle out. */
+/**
+ * The boss: three stages; the topple (its signature move) leaves it lying with the bottle out.
+ *
+ * Rattle and hop are the moves that catch a player who walks rather than dashes: you attack from
+ * inside the rattle's circle, and the hop lands where you stand. Their warnings are long enough
+ * (1050 → 1000 → 950 ms by stage) that a keyboard player with human reactions can walk clear
+ * without dashing; playtest #6 found the earlier 750–850 ms "practically impossible".
+ */
 const vendingBoss: ArenaFightDefinition = {
   ...COMMON,
   id: 'vending-boss',
@@ -115,8 +122,8 @@ const vendingBoss: ArenaFightDefinition = {
       turnDegPerS: 150,
       cycle: [
         { kind: 'coins', telegraphMs: 800, range: 8.5, halfAngleDeg: 22, fanDeg: [0] },
-        { kind: 'hop', telegraphMs: 850, radius: 1.6 },
-        { kind: 'rattle', telegraphMs: 750, radius: 2.8 },
+        { kind: 'hop', telegraphMs: 1050, radius: 1.6 },
+        { kind: 'rattle', telegraphMs: 1050, radius: 2.6 },
         { kind: 'topple', telegraphMs: 950, length: 6, width: 2.4, downMs: 2200 },
       ],
     },
@@ -128,9 +135,9 @@ const vendingBoss: ArenaFightDefinition = {
       cycle: [
         { kind: 'coins', telegraphMs: 760, range: 8.5, halfAngleDeg: 20, fanDeg: [-28, 28] },
         { kind: 'soda', telegraphMs: 850, activeMs: 1500, radius: 1.3, count: 3 },
-        { kind: 'hop', telegraphMs: 800, radius: 1.6 },
+        { kind: 'hop', telegraphMs: 1000, radius: 1.6 },
         { kind: 'topple', telegraphMs: 900, length: 6.5, width: 2.4, downMs: 2000 },
-        { kind: 'rattle', telegraphMs: 750, radius: 2.8 },
+        { kind: 'rattle', telegraphMs: 1000, radius: 2.6 },
       ],
     },
     {
@@ -144,8 +151,8 @@ const vendingBoss: ArenaFightDefinition = {
         { kind: 'coins', telegraphMs: 740, range: 9, halfAngleDeg: 20, fanDeg: [-30, 30] },
         { kind: 'topple', telegraphMs: 880, length: 6.5, width: 2.4, downMs: 1900 },
         { kind: 'soda', telegraphMs: 800, activeMs: 1500, radius: 1.3, count: 3 },
-        { kind: 'hop', telegraphMs: 780, radius: 1.7 },
-        { kind: 'rattle', telegraphMs: 750, radius: 2.8 },
+        { kind: 'hop', telegraphMs: 950, radius: 1.7 },
+        { kind: 'rattle', telegraphMs: 950, radius: 2.6 },
       ],
     },
   ],
