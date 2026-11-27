@@ -50,7 +50,8 @@ export function GameShell({ level, levels = [], onChooseLevel, levelSwitched = f
   /** The app root: a started arena fight is drawn into it over the whole window. */
   const [appEl, setAppEl] = useState<HTMLDivElement | null>(null);
   /** An arena fight fills the window: the page behind it is hidden and its 3D portrait paused. */
-  const [arenaFull, setArenaFull] = useState(false);
+  /** The fight (by fightKey) that reported it fills the window. */
+  const [fullKey, setFullKey] = useState<string | null>(null);
   /** Title screen, then the opening story (if the level has one), then the game. Restarts skip both. */
   const [screen, setScreen] = useState<'title' | 'intro' | 'play'>('title');
   const playing = screen === 'play';
@@ -87,6 +88,16 @@ export function GameShell({ level, levels = [], onChooseLevel, levelSwitched = f
   /** Live HP of the current fight, reported by the arena (presentation only). */
   const [fightHp, setFightHp] = useState<{ key: string; health: number } | null>(null);
   const fightKey = `${run}:${state.phaseId}`;
+  /**
+   * A started fight covers the window. Tied to the fight that said so, the page comes back in the
+   * same render that ends it (won, lost, restarted): the result panel and the next briefing focus
+   * their buttons as they mount, which a hidden, inert page would refuse.
+   */
+  const fightFull = fullKey === fightKey && !state.outcome;
+  const onFullChange = useCallback(
+    (full: boolean) => setFullKey((k) => (full ? fightKey : k === fightKey ? null : k)),
+    [fightKey],
+  );
   const isBossFight = (fight !== undefined || arenaFight !== undefined) && intensity === 'critical';
   const bossHealth = !phase.fight
     ? game.bossHealth
@@ -217,7 +228,7 @@ export function GameShell({ level, levels = [], onChooseLevel, levelSwitched = f
   const lastCost = lastTurn?.patienceCost ?? 0;
   useEffect(() => {
     // (Not while an arena fight covers the window: the floor flashes red there instead.)
-    if (turnCount === 0 || lastCost === 0 || reducedMotion || arenaFull) return;
+    if (turnCount === 0 || lastCost === 0 || reducedMotion || fightFull) return;
     windowRef.current?.animate?.(
       [
         { transform: 'translate(0, 0)' },
@@ -228,7 +239,7 @@ export function GameShell({ level, levels = [], onChooseLevel, levelSwitched = f
       ],
       { duration: 320, easing: 'ease-out' },
     );
-  }, [turnCount, lastCost, reducedMotion, arenaFull]);
+  }, [turnCount, lastCost, reducedMotion, fightFull]);
 
   const feedback = describeLastTurn(level, state);
   const scene = sceneCopy(level.sceneId);
@@ -249,7 +260,7 @@ export function GameShell({ level, levels = [], onChooseLevel, levelSwitched = f
     <div
       ref={setAppEl}
       className="app"
-      data-arena-full={arenaFull || undefined}
+      data-fight-full={fightFull || undefined}
       data-intensity={intensity}
       data-outcome={state.outcome ?? undefined}
       data-low-patience={state.patience === 1 || undefined}
@@ -260,7 +271,7 @@ export function GameShell({ level, levels = [], onChooseLevel, levelSwitched = f
       data-mode={mode}
     >
       <Backdrop mood={backdropMood(intensity, state.outcome)} motion={bgMotion} />
-      <div className="window" ref={windowRef} inert={!playing || arenaFull}>
+      <div className="window" ref={windowRef} inert={!playing || fightFull}>
         <header className="titlebar">
           <span className="titlebar__icon" aria-hidden="true" />
           <h1 className="titlebar__title">
@@ -300,7 +311,7 @@ export function GameShell({ level, levels = [], onChooseLevel, levelSwitched = f
               sceneProps={sceneProps}
               statusText={statusText}
               onRender3DChange={setRender3D}
-              paused={arenaFull}
+              paused={fightFull}
             />
             <dl className="statusbar">
               <div className="statusbar__item statusbar__item--status">
@@ -387,7 +398,7 @@ export function GameShell({ level, levels = [], onChooseLevel, levelSwitched = f
                 maxPatience={level.initialPatience}
                 enemyName={level.title}
                 fullTarget={appEl}
-                onFullChange={setArenaFull}
+                onFullChange={onFullChange}
                 soundOn={soundOn}
                 onToggleSound={toggleSound}
                 onRestart={restart}
@@ -403,6 +414,14 @@ export function GameShell({ level, levels = [], onChooseLevel, levelSwitched = f
                 onWon={onFightWon}
                 onHealth={onFightHealth}
                 onFrame={onFightFrame}
+                patience={state.patience}
+                maxPatience={level.initialPatience}
+                enemyName={level.title}
+                fullTarget={appEl}
+                onFullChange={onFullChange}
+                soundOn={soundOn}
+                onToggleSound={toggleSound}
+                onRestart={restart}
               />
             ) : challenge ? (
               <SkillChallenge

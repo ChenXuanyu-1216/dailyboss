@@ -8,7 +8,7 @@ import {
   type MouseEvent,
   type PointerEvent,
 } from 'react';
-import { flushSync } from 'react-dom';
+import { createPortal, flushSync } from 'react-dom';
 import {
   LANE_COUNT,
   canUse,
@@ -28,6 +28,7 @@ import { sfx, soundsFor } from './audio';
 import { UI } from './copy';
 import { FightFx } from './fightEffects';
 import { FightFxLayer } from './FightFxLayer';
+import { FightHud, PatiencePips, PauseExtras, useFullWindow, type FullWindowProps } from './FightFullWindow';
 import { effectsEnabled, usePrefersReducedMotion } from './hooks';
 
 /** Assist mode runs fight time at this fraction of real time. */
@@ -92,7 +93,7 @@ function shake(el: HTMLElement | null, amp: number): void {
   );
 }
 
-interface Props {
+interface Props extends FullWindowProps {
   fight: FightDefinition;
   seed: number;
   assist: boolean;
@@ -216,7 +217,24 @@ const ANNOUNCED = new Set<FightEvent['type']>(['hit', 'damage', 'interrupt', 'he
  * One real-time fight. Owns the clock (performance.now() deltas, scaled in assist mode) and the
  * input devices; the rules live in src/game/fight.ts. Reports hits, the win and HP changes up.
  */
-export function FightArena({ fight, seed, assist, isBoss, onHit, onWon, onHealth, onFrame }: Props) {
+export function FightArena({
+  fight,
+  seed,
+  assist,
+  isBoss,
+  onHit,
+  onWon,
+  onHealth,
+  onFrame,
+  patience,
+  maxPatience,
+  enemyName,
+  fullTarget,
+  onFullChange,
+  soundOn,
+  onToggleSound,
+  onRestart,
+}: Props) {
   const [view, setView] = useState<FightState>(() => createFight(fight, seed));
   const [started, setStarted] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -251,6 +269,8 @@ export function FightArena({ fight, seed, assist, isBoss, onHit, onWon, onHealth
   callbacks.current = { onHit, onWon, onHealth, onFrame };
 
   const running = started && !paused && !view.won;
+  /** Once started, the fight fills the browser window (until it ends and the page moves on). */
+  const full = useFullWindow(started, fullTarget, onFullChange, rootRef);
 
   const releaseAll = useCallback(() => {
     held.current.block.clear();
@@ -264,8 +284,9 @@ export function FightArena({ fight, seed, assist, isBoss, onHit, onWon, onHealth
     setStarted(true);
     setPaused(false);
     lastFrame.current = null;
-    rootRef.current?.scrollIntoView?.({ block: 'nearest' });
-  }, []);
+    // In its panel, bring the lanes into view (the full-window view needs no scrolling).
+    if (!fullTarget) rootRef.current?.scrollIntoView?.({ block: 'nearest' });
+  }, [fullTarget]);
 
   const pause = useCallback(() => {
     releaseAll();
@@ -275,7 +296,8 @@ export function FightArena({ fight, seed, assist, isBoss, onHit, onWon, onHealth
   const resume = useCallback(() => {
     lastFrame.current = null;
     setPaused(false);
-  }, []);
+    if (full) rootRef.current?.focus({ preventScroll: true });
+  }, [full]);
 
   useEffect(() => {
     if (!started) startRef.current?.focus();
@@ -447,10 +469,24 @@ export function FightArena({ fight, seed, assist, isBoss, onHit, onWon, onHealth
   const fresh = abilities.filter((a) => fight.newAbilities.includes(a));
   const known = abilities.filter((a) => !fight.newAbilities.includes(a));
 
-  return (
+  const pauseButton = started && !s.won && (
+    <button
+      type="button"
+      className="btn btn--ghost btn--small fight__pause"
+      onClick={paused ? resume : pause}
+      aria-keyshortcuts="Escape"
+    >
+      {paused ? UI.fightResume : UI.fightPause}
+    </button>
+  );
+
+  const section = (
     <section
       ref={rootRef}
-      className="panel fight"
+      tabIndex={-1}
+      className={full ? 'panel fight fight--full' : 'panel fight'}
+      data-full={full || undefined}
+      data-kind="lanes"
       aria-labelledby="fight-heading"
       data-fight-id={fight.id}
       data-started={started || undefined}
@@ -470,40 +506,44 @@ export function FightArena({ fight, seed, assist, isBoss, onHit, onWon, onHealth
       data-fx={fxOn || undefined}
       data-won={s.won || undefined}
     >
-      <header className="fight__head">
-        <h2 id="fight-heading" className="panel__label">
-          {stage?.title ?? UI.fightArena}
-        </h2>
-        {!isBoss && (
-          <span className="fight__progress">
-            {fight.copy.progress}
-            <span className="fight__pips" aria-hidden="true">
-              {Array.from({ length: fight.maxHp }, (_, i) => (
-                <span key={i} className="fight__pip" data-done={i < fight.maxHp - s.hp || undefined} />
-              ))}
+      {full ? (
+        <FightHud
+          enemyName={enemyName}
+          stageTitle={stage?.title ?? UI.fightArena}
+          label={fight.copy.progress}
+          health={fightHealth(fight, s)}
+          patience={patience}
+          maxPatience={maxPatience}
+        >
+          {pauseButton}
+        </FightHud>
+      ) : (
+        <header className="fight__head">
+          <h2 id="fight-heading" className="panel__label">
+            {stage?.title ?? UI.fightArena}
+          </h2>
+          {!isBoss && (
+            <span className="fight__progress">
+              {fight.copy.progress}
+              <span className="fight__pips" aria-hidden="true">
+                {Array.from({ length: fight.maxHp }, (_, i) => (
+                  <span key={i} className="fight__pip" data-done={i < fight.maxHp - s.hp || undefined} />
+                ))}
+              </span>
+              <span className="visually-hidden">
+                {fight.maxHp - s.hp} / {fight.maxHp}
+              </span>
             </span>
-            <span className="visually-hidden">
-              {fight.maxHp - s.hp} / {fight.maxHp}
+          )}
+          {isBoss && (
+            // Narrow screens scroll the boss bar away during the fight; this mirrors it (CSS shows it there only).
+            <span className="fight__hp" aria-hidden="true">
+              <span className="fight__hp-fill" style={{ transform: `scaleX(${fightHealth(fight, s)})` }} />
             </span>
-          </span>
-        )}
-        {isBoss && (
-          // Narrow screens scroll the boss bar away during the fight; this mirrors it (CSS shows it there only).
-          <span className="fight__hp" aria-hidden="true">
-            <span className="fight__hp-fill" style={{ transform: `scaleX(${fightHealth(fight, s)})` }} />
-          </span>
-        )}
-        {started && !s.won && (
-          <button
-            type="button"
-            className="btn btn--ghost btn--small fight__pause"
-            onClick={paused ? resume : pause}
-            aria-keyshortcuts="Escape"
-          >
-            {paused ? UI.fightResume : UI.fightPause}
-          </button>
-        )}
-      </header>
+          )}
+          {pauseButton}
+        </header>
+      )}
 
       <div className="fight__arena" ref={arenaRef} role="group" aria-label={UI.fightArena}>
         {s.charge && (
@@ -581,6 +621,9 @@ export function FightArena({ fight, seed, assist, isBoss, onHit, onWon, onHealth
           >
             <span className="fight__floor" aria-hidden="true" />
             {s.blocking && <span className="fight__shield" aria-hidden="true" />}
+            {patience !== undefined && maxPatience !== undefined && maxPatience > 0 && (
+              <PatiencePips patience={patience} max={maxPatience} />
+            )}
             <span className="fight__avatar" ref={avatarRef}>
               {UI.fightYou}
             </span>
@@ -678,6 +721,7 @@ export function FightArena({ fight, seed, assist, isBoss, onHit, onWon, onHealth
                 Esc
               </kbd>
             </button>
+            {full && <PauseExtras soundOn={soundOn} onToggleSound={onToggleSound} onRestart={onRestart} />}
           </div>
         )}
       </div>
@@ -765,4 +809,6 @@ export function FightArena({ fight, seed, assist, isBoss, onHit, onWon, onHealth
       </p>
     </section>
   );
+
+  return full && fullTarget ? createPortal(section, fullTarget) : section;
 }

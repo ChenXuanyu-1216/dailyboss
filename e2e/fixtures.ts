@@ -201,7 +201,9 @@ export class GamePage {
   readonly introNext: Locator;
 
   constructor(readonly page: Page) {
-    this.bossBar = page.getByRole('progressbar', { name: 'Boss 血量' });
+    // The page's own boss bar. While a fight fills the window the page is hidden and the fight's
+    // top bar (getByTestId('fight-boss-bar')) carries the same name, so match this one by class.
+    this.bossBar = page.locator('.boss-bar__track');
     this.bossCard = page.getByTestId('boss-card');
     this.hurtPop = page.getByTestId('hurt-pop');
     this.victoryPrint = page.getByTestId('victory-print');
@@ -340,7 +342,8 @@ export class GamePage {
    * Lets tests wait for R3F's real renderer teardown instead of sleeping.
    */
   async watchCanvasContextLoss() {
-    await expect(this.canvas).toBeVisible();
+    // Attached is enough: behind a full-window fight the canvas is hidden (and paused), not gone.
+    await expect(this.canvas).toHaveCount(1);
     await this.canvas.evaluate((canvas) => {
       (window as unknown as { __dbContextLost: boolean }).__dbContextLost = false;
       canvas.addEventListener('webglcontextlost', () => {

@@ -21,8 +21,9 @@ export default defineConfig({
   // Software WebGL (SwiftShader) is CPU-heavy: many parallel browsers starve each other and make
   // input events time out. Two workers keep runs deterministic; override with E2E_WORKERS.
   workers: Number(process.env.E2E_WORKERS ?? 2),
-  // Shared CI runners can be substantially slower than local browsers, even with two workers.
-  timeout: process.env.CI ? 60_000 : 30_000,
+  // Fights fill the window, so every frame paints the whole viewport in software. While the other
+  // worker renders a fight, a page can take tens of seconds to first paint, locally as on CI.
+  timeout: 60_000,
   expect: { timeout: 10_000 },
   reporter: process.env.CI ? [['list'], ['html', { open: 'never' }]] : [['list']],
   use: {
