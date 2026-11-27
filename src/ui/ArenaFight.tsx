@@ -464,7 +464,7 @@ export function ArenaFight({
           enemyName={enemyName}
           stageTitle={stage?.title ?? UI.fightArena}
           label={fight.copy.progress}
-          health={health}
+          value={health}
           patience={patience}
           maxPatience={maxPatience}
         >

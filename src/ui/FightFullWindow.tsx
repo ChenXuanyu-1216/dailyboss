@@ -49,16 +49,16 @@ interface HudProps {
   stageTitle: string;
   /** What the bar measures (the fight's progress copy). */
   label: string;
-  /** Enemy health in [0, 1]. */
-  health: number;
+  /** Fight progress or enemy health in [0, 1]. */
+  value: number;
   patience?: number;
   maxPatience?: number;
   /** Buttons at the right end (pause, view switch). */
   children?: ReactNode;
 }
 
-/** Full window: the enemy's health as one long bar across the top, tools at the right. */
-export function FightHud({ enemyName, stageTitle, label, health, patience, maxPatience, children }: HudProps) {
+/** Full window: a long bar across the top, tools at the right. */
+export function FightHud({ enemyName, stageTitle, label, value, patience, maxPatience, children }: HudProps) {
   return (
     <header className="fight-hud">
       <div className="fight-hud__boss">
@@ -74,10 +74,10 @@ export function FightHud({ enemyName, stageTitle, label, health, patience, maxPa
           aria-label={label}
           aria-valuemin={0}
           aria-valuemax={100}
-          aria-valuenow={Math.round(health * 100)}
+          aria-valuenow={Math.round(value * 100)}
           data-testid="fight-boss-bar"
         >
-          <span className="fight-hud__fill" style={{ transform: `scaleX(${health})` }} />
+          <span className="fight-hud__fill" style={{ transform: `scaleX(${value})` }} />
         </div>
       </div>
       <div className="fight-hud__tools">{children}</div>

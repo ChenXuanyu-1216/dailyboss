@@ -453,6 +453,7 @@ export function FightArena({
   };
 
   const s = view;
+  const health = fightHealth(fight, s);
   const t = s.t;
   const stage = fight.stages[s.stage];
   const channel = channelProgress(s);
@@ -511,7 +512,7 @@ export function FightArena({
           enemyName={enemyName}
           stageTitle={stage?.title ?? UI.fightArena}
           label={fight.copy.progress}
-          health={fightHealth(fight, s)}
+          value={isBoss ? health : 1 - health}
           patience={patience}
           maxPatience={maxPatience}
         >
@@ -538,7 +539,7 @@ export function FightArena({
           {isBoss && (
             // Narrow screens scroll the boss bar away during the fight; this mirrors it (CSS shows it there only).
             <span className="fight__hp" aria-hidden="true">
-              <span className="fight__hp-fill" style={{ transform: `scaleX(${fightHealth(fight, s)})` }} />
+              <span className="fight__hp-fill" style={{ transform: `scaleX(${health})` }} />
             </span>
           )}
           {pauseButton}

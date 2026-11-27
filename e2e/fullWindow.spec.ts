@@ -15,8 +15,8 @@ test.describe('printer fight fills the window once it starts', () => {
     await expect(page.locator('.window')).toBeHidden();
     await expect(page.locator('.window')).toHaveAttribute('inert', '');
 
-    const bar = page.getByTestId('fight-boss-bar');
-    await expect(bar).toHaveAttribute('aria-valuenow', '100');
+    const bar = game.fight.getByRole('progressbar', { name: '重新连接' });
+    await expect(bar).toHaveAttribute('aria-valuenow', '0');
     const b = (await bar.boundingBox())!;
     expect(b.y, 'at the top').toBeLessThan(60);
     expect(b.width, 'most of the width').toBeGreaterThan(vp.width * 0.7);
@@ -49,7 +49,10 @@ test.describe('printer fight fills the window once it starts', () => {
   test('winning a fight returns to the next briefing in its panel', async ({ game, page }) => {
     await game.openPaused();
     await game.installBot();
-    await game.clearFight();
+    await game.fightStart.click();
+    const progress = game.fight.getByRole('progressbar', { name: '重新连接' });
+    await game.runUntil(async () => (await progress.getAttribute('aria-valuenow')) === '50', { stepMs: 500 });
+    await game.runUntil(async () => (await game.fight.getAttribute('data-fight-id')) === FIGHT_IDS[1]);
     await expect(game.fight).toHaveAttribute('data-fight-id', FIGHT_IDS[1]);
     await expect(game.fight).not.toHaveAttribute('data-full');
     await expect(page.locator('.window')).not.toHaveAttribute('inert');
