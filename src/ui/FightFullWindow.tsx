@@ -49,6 +49,8 @@ interface HudProps {
   stageTitle: string;
   /** What the bar measures (the fight's progress copy). */
   label: string;
+  /** Show the objective next to the stage title for warm-ups that track completion. */
+  showLabel?: boolean;
   /** Fight progress or enemy health in [0, 1]. */
   value: number;
   patience?: number;
@@ -58,7 +60,7 @@ interface HudProps {
 }
 
 /** Full window: a long bar across the top, tools at the right. */
-export function FightHud({ enemyName, stageTitle, label, value, patience, maxPatience, children }: HudProps) {
+export function FightHud({ enemyName, stageTitle, label, showLabel, value, patience, maxPatience, children }: HudProps) {
   return (
     <header className="fight-hud">
       <div className="fight-hud__boss">
@@ -67,6 +69,7 @@ export function FightHud({ enemyName, stageTitle, label, value, patience, maxPat
           <h2 id="fight-heading" className="fight-hud__stage">
             {stageTitle}
           </h2>
+          {showLabel && <span className="fight-hud__label" aria-hidden="true">{label}</span>}
         </div>
         <div
           className="fight-hud__bar"
@@ -90,9 +93,11 @@ export function FightHud({ enemyName, stageTitle, label, value, patience, maxPat
   );
 }
 
-/** The page's title bar is covered in the full-window view: its buttons, in the pause menu. */
-export function PauseExtras({ soundOn, onToggleSound, onRestart }: Pick<FullWindowProps, 'soundOn' | 'onToggleSound' | 'onRestart'>) {
-  if (!onToggleSound && !onRestart) return null;
+type PauseExtrasProps = Pick<FullWindowProps, 'soundOn' | 'onToggleSound' | 'onRestart'> & { children?: ReactNode };
+
+/** Controls from the covered page, available in the pause menu. */
+export function PauseExtras({ soundOn, onToggleSound, onRestart, children }: PauseExtrasProps) {
+  if (!onToggleSound && !onRestart && !children) return null;
   return (
     <div className="fight__paused-more">
       {onToggleSound && (
@@ -100,6 +105,7 @@ export function PauseExtras({ soundOn, onToggleSound, onRestart }: Pick<FullWind
           {soundOn ? UI.soundOn : UI.soundOff}
         </button>
       )}
+      {children}
       {onRestart && (
         <button type="button" className="btn btn--ghost btn--small" onClick={onRestart} aria-keyshortcuts="R">
           {UI.restartShort}

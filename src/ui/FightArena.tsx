@@ -97,6 +97,7 @@ interface Props extends FullWindowProps {
   fight: FightDefinition;
   seed: number;
   assist: boolean;
+  onToggleAssist?: () => void;
   /** The boss fight shows its HP on the boss bar, so the arena hides its own progress. */
   isBoss: boolean;
   onHit: (attack: AttackKind) => void;
@@ -221,6 +222,7 @@ export function FightArena({
   fight,
   seed,
   assist,
+  onToggleAssist,
   isBoss,
   onHit,
   onWon,
@@ -512,6 +514,7 @@ export function FightArena({
           enemyName={enemyName}
           stageTitle={stage?.title ?? UI.fightArena}
           label={fight.copy.progress}
+          showLabel={!isBoss}
           value={isBoss ? health : 1 - health}
           patience={patience}
           maxPatience={maxPatience}
@@ -722,7 +725,21 @@ export function FightArena({
                 Esc
               </kbd>
             </button>
-            {full && <PauseExtras soundOn={soundOn} onToggleSound={onToggleSound} onRestart={onRestart} />}
+            {full && (
+              <PauseExtras soundOn={soundOn} onToggleSound={onToggleSound} onRestart={onRestart}>
+                {onToggleAssist && (
+                  <button
+                    type="button"
+                    className="btn btn--ghost btn--small assist-toggle"
+                    aria-pressed={assist}
+                    onClick={onToggleAssist}
+                    title={UI.assistHint}
+                  >
+                    {UI.assist}
+                  </button>
+                )}
+              </PauseExtras>
+            )}
           </div>
         )}
       </div>

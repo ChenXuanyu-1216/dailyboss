@@ -409,6 +409,7 @@ export function GameShell({ level, levels = [], onChooseLevel, levelSwitched = f
                 fight={fight}
                 seed={fightSeed()}
                 assist={assist}
+                onToggleAssist={toggleAssist}
                 isBoss={isBossFight}
                 onHit={onFightHit}
                 onWon={onFightWon}

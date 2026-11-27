@@ -1307,6 +1307,14 @@
   margin: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.fight-hud__label {
+  flex-shrink: 0;
+}
+
+.fight-hud__stage,
+.fight-hud__label {
   font-size: var(--fs-xs);
   font-weight: var(--fw-medium);
   color: rgb(238 242 255 / 0.78);
@@ -1343,7 +1351,8 @@
   color: #eef2ff;
 }
 
-.fight--full .fight-hud .btn[aria-pressed='true'] {
+.fight--full .fight-hud .btn[aria-pressed='true'],
+.fight--full .fight__paused-more .assist-toggle[aria-pressed='true'] {
   background: rgb(255 255 255 / 0.85);
   color: #0a0e1a;
 }
@@ -1413,6 +1422,8 @@
 
 .fight__paused-more {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: var(--sp-2);
 }
 

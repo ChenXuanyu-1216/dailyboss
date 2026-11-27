@@ -17,6 +17,7 @@ test.describe('printer fight fills the window once it starts', () => {
 
     const bar = game.fight.getByRole('progressbar', { name: '重新连接' });
     await expect(bar).toHaveAttribute('aria-valuenow', '0');
+    await expect(game.fight.getByText('重新连接', { exact: true })).toBeVisible();
     const b = (await bar.boundingBox())!;
     expect(b.y, 'at the top').toBeLessThan(60);
     expect(b.width, 'most of the width').toBeGreaterThan(vp.width * 0.7);
@@ -40,10 +41,15 @@ test.describe('printer fight fills the window once it starts', () => {
     await page.keyboard.press('Escape');
     const menu = page.locator('.fight__paused');
     await expect(menu.getByRole('button', { name: /^声音/ })).toBeVisible();
+    const assist = menu.getByRole('button', { name: '辅助模式' });
+    await expect(assist).toHaveAttribute('aria-pressed', 'false');
+    await assist.click();
+    await expect(assist).toHaveAttribute('aria-pressed', 'true');
     await menu.getByRole('button', { name: '重开' }).click();
     await expect(game.fight).not.toHaveAttribute('data-full');
     await expect(game.fightStart).toBeVisible();
     await expect(page.locator('.window')).toBeVisible();
+    await expect(game.assistToggle).toHaveAttribute('aria-pressed', 'true');
   });
 
   test('winning a fight returns to the next briefing in its panel', async ({ game, page }) => {
