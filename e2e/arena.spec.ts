@@ -178,27 +178,30 @@ test.describe('vending machine opening story', () => {
   });
 });
 
-test.describe('vending machine, whole level', () => {
-  let botScript = '';
+let botScript: Promise<string> | null = null;
 
-  test.beforeAll(async () => {
-    // Bundle the in-page player (e2e/arenaPageBot.ts + tests/arenaBot.ts + the simulation) once.
-    const { build } = await import('rolldown');
+/** The in-page player (e2e/arenaPageBot.ts + tests/arenaBot.ts + the simulation), bundled once per worker. */
+function bundleBot(): Promise<string> {
+  botScript ??= import('rolldown').then(async ({ build }) => {
     const out = await build({
       input: fileURLToPath(new URL('./arenaPageBot.ts', import.meta.url)),
       write: false,
       output: { format: 'iife' },
       logLevel: 'silent',
     });
-    botScript = out.output[0].code;
+    return out.output[0].code;
   });
+  return botScript;
+}
 
+test.describe('vending machine, whole level', () => {
   test('a scripted player beats all three fights with the keyboard', async ({ game, page }) => {
     // About two minutes of fight time, stepped frame by frame under the fake clock.
-    // CI runs have completed near the three-minute wall-clock budget; allow slower software rendering.
-    test.setTimeout(process.env.CI ? 300_000 : 180_000);
+    // Alone it takes ~2.2 min; the full-window canvas makes software rendering slower
+    // when other specs run alongside, so allow five minutes everywhere.
+    test.setTimeout(300_000);
     await game.openPaused(`${LEVEL}&probe=1`);
-    await page.addScriptTag({ content: botScript });
+    await page.addScriptTag({ content: await bundleBot() });
     await page.evaluate(() => (window as unknown as { installArenaBot: () => void }).installArenaBot());
 
     for (const [i, title] of ['吞币', '找零中', '出货失败：最终 Boss'].entries()) {
@@ -211,5 +214,76 @@ test.describe('vending machine, whole level', () => {
     await expect(game.resultTitle).toHaveText(/^(你买到了一瓶水|饮料出来了)$/);
     const patience = Number((await game.patience.textContent())!.match(/(\d+) \/ 5/)![1]);
     expect(patience, 'a careful player takes at most a couple of hits').toBeGreaterThanOrEqual(3);
+  });
+});
+
+test.describe('vending machine fills the window once a fight starts', () => {
+  test('boss bar across the top, patience over the player, the page behind hidden', async ({ game, page }) => {
+    await game.openPaused(LEVEL);
+    // The briefing still shows in its panel, with the page around it.
+    await expect(game.fight).not.toHaveAttribute('data-full');
+    await expect(page.locator('.window')).toBeVisible();
+
+    await game.fightStart.click();
+    await expect(game.fight).toHaveAttribute('data-full', 'true');
+    const vp = page.viewportSize()!;
+    const box = (await game.fight.boundingBox())!;
+    expect(box).toEqual({ x: 0, y: 0, width: vp.width, height: vp.height });
+    await expect(page.locator('.window')).toBeHidden();
+    await expect(page.locator('.window')).toHaveAttribute('inert', '');
+
+    // The machine's health: one long bar across the top.
+    const bar = page.getByTestId('arena-boss-bar');
+    await expect(bar).toHaveAttribute('aria-valuenow', '100');
+    const b = (await bar.boundingBox())!;
+    expect(b.y, 'at the top').toBeLessThan(60);
+    expect(b.width, 'most of the width').toBeGreaterThan(vp.width * 0.7);
+
+    // Patience over the player (drawn on the floor; announced as text) drops when hit.
+    const patience = page.getByTestId('arena-patience');
+    await expect(patience).toHaveText('耐心 5 / 5');
+    await game.runUntil(async () => (await game.log.count()) >= 1, { stepMs: 500, maxMs: 30_000 });
+    await expect(patience).toHaveText('耐心 4 / 5');
+    await game.expectNoHorizontalOverflow();
+
+    // The pause menu stands in for the covered title bar.
+    await page.keyboard.press('Escape');
+    const menu = page.locator('.fight__paused');
+    await expect(menu.getByRole('button', { name: /^声音/ })).toBeVisible();
+    await menu.getByRole('button', { name: '重开' }).click();
+    await expect(game.fight).not.toHaveAttribute('data-full');
+    await expect(game.fightStart).toBeVisible();
+    await expect(page.locator('.window')).toBeVisible();
+  });
+
+  test('winning a fight returns to the next briefing in its panel', async ({ game, page }) => {
+    test.setTimeout(60_000);
+    await game.openPaused(`${LEVEL}&probe=1`);
+    await page.addScriptTag({ content: await bundleBot() });
+    await page.evaluate(() => (window as unknown as { installArenaBot: () => void }).installArenaBot());
+    await game.clearFight();
+    await expect(game.fight).toHaveAttribute('data-fight-id', 'vending-change');
+    await expect(game.fight).not.toHaveAttribute('data-full');
+    await expect(game.fightStart).toBeVisible();
+  });
+});
+
+test.describe('vending machine full window on a phone', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true });
+
+  test('the stick and buttons sit inside the screen, under the boss bar', async ({ game, page }) => {
+    await game.openPaused(LEVEL);
+    await game.fightStart.click();
+    await expect(game.fight).toHaveAttribute('data-full', 'true');
+    await game.expectNoHorizontalOverflow();
+    const stick = (await page.getByTestId('arena-stick').boundingBox())!;
+    const attack = (await page.locator('[data-ability="attack"]').boundingBox())!;
+    const bar = (await page.getByTestId('arena-boss-bar').boundingBox())!;
+    for (const r of [stick, attack]) {
+      expect(r.x).toBeGreaterThanOrEqual(0);
+      expect(r.x + r.width).toBeLessThanOrEqual(390);
+      expect(r.y + r.height).toBeLessThanOrEqual(844);
+      expect(r.y).toBeGreaterThan(bar.y + bar.height);
+    }
   });
 });

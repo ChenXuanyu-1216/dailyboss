@@ -380,9 +380,9 @@ function Printer(props: SceneProps) {
   );
 }
 
-export default function PrinterScene({ onContextLost, ...props }: Scene3DProps) {
+export default function PrinterScene({ onContextLost, paused, ...props }: Scene3DProps) {
   return (
-    <SceneCanvas reducedMotion={props.reducedMotion} onContextLost={onContextLost}>
+    <SceneCanvas reducedMotion={props.reducedMotion} onContextLost={onContextLost} paused={paused}>
       <Printer {...props} />
     </SceneCanvas>
   );

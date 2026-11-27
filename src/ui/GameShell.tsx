@@ -47,6 +47,10 @@ export function GameShell({ level, levels = [], onChooseLevel, levelSwitched = f
   const [assist, setAssist] = useState(initialAssist);
   // Follows the scene host: the arena fight draws in 3D only while the scene does.
   const [render3D, setRender3D] = useState(false);
+  /** The app root: a started arena fight is drawn into it over the whole window. */
+  const [appEl, setAppEl] = useState<HTMLDivElement | null>(null);
+  /** An arena fight fills the window: the page behind it is hidden and its 3D portrait paused. */
+  const [arenaFull, setArenaFull] = useState(false);
   /** Title screen, then the opening story (if the level has one), then the game. Restarts skip both. */
   const [screen, setScreen] = useState<'title' | 'intro' | 'play'>('title');
   const playing = screen === 'play';
@@ -212,7 +216,8 @@ export function GameShell({ level, levels = [], onChooseLevel, levelSwitched = f
   const turnCount = state.turns.length;
   const lastCost = lastTurn?.patienceCost ?? 0;
   useEffect(() => {
-    if (turnCount === 0 || lastCost === 0 || reducedMotion) return;
+    // (Not while an arena fight covers the window: the floor flashes red there instead.)
+    if (turnCount === 0 || lastCost === 0 || reducedMotion || arenaFull) return;
     windowRef.current?.animate?.(
       [
         { transform: 'translate(0, 0)' },
@@ -223,7 +228,7 @@ export function GameShell({ level, levels = [], onChooseLevel, levelSwitched = f
       ],
       { duration: 320, easing: 'ease-out' },
     );
-  }, [turnCount, lastCost, reducedMotion]);
+  }, [turnCount, lastCost, reducedMotion, arenaFull]);
 
   const feedback = describeLastTurn(level, state);
   const scene = sceneCopy(level.sceneId);
@@ -242,7 +247,9 @@ export function GameShell({ level, levels = [], onChooseLevel, levelSwitched = f
 
   return (
     <div
+      ref={setAppEl}
       className="app"
+      data-arena-full={arenaFull || undefined}
       data-intensity={intensity}
       data-outcome={state.outcome ?? undefined}
       data-low-patience={state.patience === 1 || undefined}
@@ -253,7 +260,7 @@ export function GameShell({ level, levels = [], onChooseLevel, levelSwitched = f
       data-mode={mode}
     >
       <Backdrop mood={backdropMood(intensity, state.outcome)} motion={bgMotion} />
-      <div className="window" ref={windowRef} inert={!playing}>
+      <div className="window" ref={windowRef} inert={!playing || arenaFull}>
         <header className="titlebar">
           <span className="titlebar__icon" aria-hidden="true" />
           <h1 className="titlebar__title">
@@ -293,6 +300,7 @@ export function GameShell({ level, levels = [], onChooseLevel, levelSwitched = f
               sceneProps={sceneProps}
               statusText={statusText}
               onRender3DChange={setRender3D}
+              paused={arenaFull}
             />
             <dl className="statusbar">
               <div className="statusbar__item statusbar__item--status">
@@ -375,6 +383,14 @@ export function GameShell({ level, levels = [], onChooseLevel, levelSwitched = f
                 onWon={onFightWon}
                 onHealth={onFightHealth}
                 onFrame={onArenaFrame}
+                patience={state.patience}
+                maxPatience={level.initialPatience}
+                enemyName={level.title}
+                fullTarget={appEl}
+                onFullChange={setArenaFull}
+                soundOn={soundOn}
+                onToggleSound={toggleSound}
+                onRestart={restart}
               />
             ) : fight ? (
               <FightArena

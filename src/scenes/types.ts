@@ -4,4 +4,6 @@ import type { SceneProps } from '../game/contracts';
 export interface Scene3DProps extends SceneProps {
   /** Call when the WebGL context is lost so the host can switch to the fallback. */
   onContextLost: () => void;
+  /** The scene is covered: stop drawing until it is shown again. */
+  paused?: boolean;
 }

@@ -32,6 +32,7 @@ import { Student } from './kit/Student';
 import { blobShadowTexture, canLabelTexture, floorTexture, lockerTexture } from './kit/textures';
 import { useStudioEnvironment } from './kit/useStudioEnvironment';
 import { VendingMachine, newKicks, type Quality } from './kit/VendingMachine';
+import { PATIENCE_BAR } from '../ui/arenaDraw';
 import { SceneCanvas } from './SceneCanvas';
 
 /**
@@ -52,9 +53,68 @@ export interface ArenaScene3DProps {
   quality: Quality;
   reducedMotion: boolean;
   onContextLost: () => void;
+  /** The player's patience (the level's), shown as a bar over the student's head. */
+  patience?: number;
+  maxPatience?: number;
+  /** The view fills the browser window under a top bar: frame a little more depth. */
+  fullWindow?: boolean;
 }
 
 const ELEVATION = MathUtils.degToRad(47);
+/** Full window: more depth, so the machine at the back clears the health bar across the top. */
+const FOLLOW_VIEW_FULL = { w: 11, d: 9 };
+/** A tall (portrait) view follows the player across a narrower slice of the floor, so it is not tiny. */
+const PORTRAIT_VIEW_W = 6.5;
+/** Height of the patience bar's centre above the floor, just over the student's head. */
+const BAR_Y = 1.95;
+const BAR_SEG = { w: 0.26, h: 0.11, gap: 0.05 };
+
+/**
+ * The patience bar over the student: one segment per point, red on the last one. It always faces
+ * the camera and draws on top of everything, so a hazard or the machine never hides it.
+ */
+function PatienceBar({ value, max, state }: { value: number; max: number; state: MutableRefObject<ArenaState> }) {
+  const group = useRef<Group>(null);
+  const { camera, invalidate } = useThree();
+  const width = max * BAR_SEG.w + (max - 1) * BAR_SEG.gap;
+  const mats = useMemo(() => {
+    const make = () => new MeshBasicMaterial({ depthTest: false, depthWrite: false, transparent: true, toneMapped: false });
+    return { back: make(), segs: Array.from({ length: max }, make) };
+  }, [max]);
+  useEffect(
+    () => () => {
+      mats.back.dispose();
+      for (const m of mats.segs) m.dispose();
+    },
+    [mats],
+  );
+  useEffect(() => {
+    mats.back.color.set(PATIENCE_BAR.back);
+    mats.back.opacity = 0.8;
+    mats.segs.forEach((m, i) => {
+      m.color.set(i < value ? (value === 1 ? PATIENCE_BAR.last : PATIENCE_BAR.full) : PATIENCE_BAR.empty);
+    });
+    invalidate();
+  }, [mats, value, invalidate]);
+  useFrame(() => {
+    if (!group.current) return;
+    const p = state.current.pos;
+    group.current.position.set(p.x, BAR_Y, -p.y);
+    group.current.quaternion.copy(camera.quaternion);
+  });
+  return (
+    <group ref={group} renderOrder={20}>
+      <mesh material={mats.back} renderOrder={20}>
+        <planeGeometry args={[width + 2 * BAR_SEG.gap, BAR_SEG.h + 2 * BAR_SEG.gap]} />
+      </mesh>
+      {mats.segs.map((m, i) => (
+        <mesh key={i} material={m} renderOrder={21} position={[-width / 2 + BAR_SEG.w / 2 + i * (BAR_SEG.w + BAR_SEG.gap), 0, 0.001]}>
+          <planeGeometry args={[BAR_SEG.w, BAR_SEG.h]} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
 const FOLLOW_VIEW = { w: 11, d: 7.5 };
 /** Flight of the soda cans the machine lobs at each puddle, ending as the puddle strikes. */
 const LOB_HEIGHT = 3.2;
@@ -65,7 +125,15 @@ interface Pending {
   run: () => void;
 }
 
-function Arena({ def, state, feed, quality }: Omit<ArenaScene3DProps, 'onContextLost' | 'reducedMotion'>) {
+function Arena({
+  def,
+  state,
+  feed,
+  quality,
+  patience,
+  maxPatience,
+  fullWindow = false,
+}: Omit<ArenaScene3DProps, 'onContextLost' | 'reducedMotion'>) {
   const motion = quality !== 'off';
   const { halfW, halfH } = def.floor;
   const size = useMemo(() => machineSize(def), [def]);
@@ -391,8 +459,10 @@ function Arena({ def, state, feed, quality }: Omit<ArenaScene3DProps, 'onContext
     const aspect = view.width / Math.max(1, view.height);
     const tanHalf = Math.tan(MathUtils.degToRad(cam.fov) / 2);
     const follow = motion;
-    const viewW = follow ? Math.min(2 * halfW, FOLLOW_VIEW.w) : 2 * halfW + 1.2;
-    const viewD = follow ? Math.min(2 * halfH, FOLLOW_VIEW.d) : 2 * halfH + 1.2;
+    const frame = fullWindow ? FOLLOW_VIEW_FULL : FOLLOW_VIEW;
+    const frameW = aspect < 1 ? PORTRAIT_VIEW_W : frame.w;
+    const viewW = follow ? Math.min(2 * halfW, frameW) : 2 * halfW + 1.2;
+    const viewD = follow ? Math.min(2 * halfH + 1.2, frame.d) : 2 * halfH + 1.2;
     const d = Math.min(42, Math.max(viewW / (2 * tanHalf * aspect), (viewD * Math.sin(ELEVATION)) / (2 * tanHalf) + 1.5));
     const limitX = Math.max(0, halfW - viewW / 2);
     const limitY = Math.max(0, halfH - viewD / 2);
@@ -405,7 +475,8 @@ function Arena({ def, state, feed, quality }: Omit<ArenaScene3DProps, 'onContext
     const sx = amp * Math.sin(ct * 53) + amp * 0.5 * Math.sin(ct * 31);
     const sy = amp * Math.cos(ct * 47);
     const fx0 = focus.current.x;
-    const fz0 = -focus.current.y + 0.6;
+    // Full window: aim a little further back so the machine clears the health bar across the top.
+    const fz0 = -focus.current.y + 0.6 - (fullWindow ? 1 : 0);
     cam.position.set(fx0 + sx, d * Math.sin(ELEVATION) + sy, fz0 + d * Math.cos(ELEVATION));
     cam.lookAt(fx0 + sx * 0.5, 0.6, fz0);
   });
@@ -535,6 +606,9 @@ function Arena({ def, state, feed, quality }: Omit<ArenaScene3DProps, 'onContext
 
       <VendingMachine size={size} poseRef={machine} kicksRef={kicks} quality={quality} placed />
       <Student poseRef={student} quality={quality} />
+      {patience !== undefined && maxPatience !== undefined && (
+        <PatienceBar value={patience} max={maxPatience} state={latest} />
+      )}
       <Fx apiRef={fx} quality={quality} />
       {quality === 'full' && <Bloom />}
     </>

@@ -5,6 +5,8 @@ interface Props {
   children: ReactNode;
   reducedMotion: boolean;
   onContextLost: () => void;
+  /** Stop drawing (the scene is covered, e.g. by the full-window arena fight). */
+  paused?: boolean;
 }
 
 /**
@@ -20,7 +22,7 @@ interface Props {
  * cleanup. On unmount React destroys a parent's layout effects before its children's, so the
  * listener is gone before <Canvas> starts its teardown. Genuine loss while mounted is still reported.
  */
-export function SceneCanvas({ children, reducedMotion, onContextLost }: Props) {
+export function SceneCanvas({ children, reducedMotion, onContextLost, paused = false }: Props) {
   const lostRef = useRef(onContextLost);
   const detachRef = useRef<(() => void) | null>(null);
 
@@ -39,7 +41,7 @@ export function SceneCanvas({ children, reducedMotion, onContextLost }: Props) {
   return (
     <Canvas
       dpr={[1, 1.75]}
-      frameloop={reducedMotion ? 'demand' : 'always'}
+      frameloop={paused ? 'never' : reducedMotion ? 'demand' : 'always'}
       camera={{ position: [3.1, 2.1, 4.6], fov: 30, near: 0.1, far: 40 }}
       gl={{ antialias: true, alpha: true, powerPreference: 'low-power' }}
       onCreated={({ gl }) => {

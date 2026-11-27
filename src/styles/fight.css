@@ -1210,3 +1210,217 @@
     transition: none;
   }
 }
+
+/* ---------- full window: a started open-arena fight covers the whole browser window ---------- */
+
+/*
+ * ArenaFight portals the started fight into .app as .fight--full. The page behind it (window and
+ * backdrop) is hidden, so only the fight is drawn and nothing behind it can be focused or scrolled.
+ * The HUD floats over the floor: the machine's health as a long bar across the top, the patience
+ * bar over the player (drawn in the scene), the stick and buttons in the bottom corners.
+ */
+:root:has(.app[data-arena-full]) {
+  overflow: hidden;
+}
+
+.app[data-arena-full] > .window,
+.app[data-arena-full] > .backdrop {
+  visibility: hidden;
+}
+
+.fight.fight--full {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: block;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: #0a0e1a;
+  color: #eef2ff;
+  outline: none;
+}
+
+.fight--full[data-kind='arena'] .arena__floor {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  max-height: none;
+  border-radius: 0;
+  background: #0a0e1a;
+}
+
+.fight--full[data-kind='arena'] .arena__floor[data-hurt] {
+  box-shadow: inset 0 0 0 8px rgb(229 72 77 / 0.75);
+}
+
+/* top: the machine's health across the whole width */
+.arena-hud {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 6;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+  padding: max(10px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) 22px
+    max(14px, env(safe-area-inset-left));
+  background: linear-gradient(rgb(10 14 26 / 0.88), rgb(10 14 26 / 0));
+  pointer-events: none;
+}
+
+.arena-hud > * {
+  pointer-events: auto;
+}
+
+.arena-hud__boss {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.arena-hud__name {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.arena-hud__enemy {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-bold);
+  letter-spacing: 0.06em;
+  color: #fff;
+}
+
+.arena-hud__stage {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  color: rgb(238 242 255 / 0.78);
+}
+
+.arena-hud__bar {
+  position: relative;
+  height: 14px;
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 0.4);
+  border-radius: 3px;
+  background: rgb(255 255 255 / 0.1);
+  box-shadow: 0 0 0 2px rgb(0 0 0 / 0.35);
+}
+
+.arena-hud__fill {
+  position: absolute;
+  inset: 0;
+  transform-origin: left center;
+  background: linear-gradient(#ff7a7a, #d6262f 60%, #a3121c);
+  transition: transform 0.25s ease-out;
+}
+
+.arena-hud__tools {
+  display: flex;
+  flex: none;
+  gap: var(--sp-2);
+}
+
+.fight--full .arena-hud .btn,
+.fight--full .fight__paused-more .btn {
+  border-color: rgb(255 255 255 / 0.4);
+  background: rgb(10 14 26 / 0.6);
+  color: #eef2ff;
+}
+
+.fight--full .arena-hud .btn[aria-pressed='true'] {
+  background: rgb(255 255 255 / 0.85);
+  color: #0a0e1a;
+}
+
+/* the maintenance charge sits under the top bar, centred */
+.fight--full[data-kind='arena'] .arena__charge {
+  top: calc(max(10px, env(safe-area-inset-top)) + 52px);
+  left: 50%;
+  right: auto;
+  width: min(440px, calc(100% - 32px));
+  transform: translateX(-50%);
+  border: var(--bw) solid var(--c-fight-stun);
+  border-radius: 4px;
+}
+
+/* bottom: stick left, buttons right, floating over the floor */
+.fight--full .arena__controls {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 6;
+  align-items: flex-end;
+  padding: 0 max(18px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom))
+    max(18px, env(safe-area-inset-left));
+  pointer-events: none;
+}
+
+.fight--full .arena__controls > * {
+  pointer-events: auto;
+}
+
+.fight--full .arena__stick {
+  border-color: rgb(255 255 255 / 0.35);
+  background: radial-gradient(circle, rgb(255 255 255 / 0.1), rgb(0 0 0 / 0.35));
+}
+
+.fight--full .arena__btn {
+  border-color: rgb(255 255 255 / 0.45);
+  background: rgb(10 14 26 / 0.55);
+  color: #eef2ff;
+}
+
+/* the last call-out, centred above the bottom edge */
+.fight--full .fight__call {
+  position: absolute;
+  left: 50%;
+  bottom: calc(max(18px, env(safe-area-inset-bottom)) + 4px);
+  z-index: 6;
+  width: max-content;
+  max-width: calc(100% - 2 * 150px);
+  transform: translateX(-50%);
+  color: #eef2ff;
+  text-shadow: 0 1px 3px rgb(0 0 0 / 0.9);
+  pointer-events: none;
+}
+
+.fight--full .fight__call[data-tone='hit'] {
+  color: #ff8a8a;
+}
+
+/* pause: a dimmed floor with the menu in the middle */
+.fight--full .fight__paused {
+  background: rgb(10 14 26 / 0.78);
+  color: #eef2ff;
+}
+
+.fight__paused-more {
+  display: flex;
+  gap: var(--sp-2);
+}
+
+@media (max-width: 520px) {
+  .fight--full .fight__call {
+    bottom: calc(max(18px, env(safe-area-inset-bottom)) + 124px);
+    max-width: calc(100% - 32px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arena-hud__fill {
+    transition: none;
+  }
+}

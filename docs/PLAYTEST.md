@@ -186,6 +186,7 @@ A friend of the owner played the build with the level picker; the owner passed o
 - 观察到的问题 Observed bugs: 未报告 / none reported
 - 其他备注 Other notes:
   1. 吞币售货机的最终 Boss（第三场战斗）「极难通过，几乎不可能」。/ The vending machine's final boss (its third fight) is "extremely difficult to get past, practically impossible".
+  2. 战斗画面应该占满整个浏览器窗口；玩家的血条显示在角色头顶，Boss 的血条是横跨浏览器顶部的长条。（与试玩 #5 第 3 条「战斗区域只是旁边的小面板」一致。）/ The fight should fill the whole browser window, with the player's health bar above the character and the boss's health bar as a long bar across the top of the browser. (Matches playtest #5 point 3: the fight sits in a small side panel.)
 
 **原因分析 / What the numbers showed**：用脚本玩家在 20 个种子下比较（`tests/arenaBot.ts`）。会冲刺的谨慎玩家几乎都能赢，但只用 WASD 走、不冲刺的玩家在 450–750 ms 的反应下 20 局只赢 2–3 局；同样反应下打印机 Boss 在 650 ms 时仍是 20/20。几乎所有被击中都来自两个招式：摇晃（半径 2.8，而攻击要站在约 2.1 以内）和跳砸（落在你站的位置），预警只有 750–850 ms，扣掉人的反应时间后只剩 200–350 ms 走出去。
 
@@ -194,3 +195,7 @@ Scripted players compared over 20 seeds (`tests/arenaBot.ts`). A careful player 
 **据此做出的改动 / Changes made in response**：Boss 的摇晃与跳砸预警按形态改为 1050 → 1000 → 950 ms（原 750–850 ms），摇晃半径 2.8 → 2.6；其他招式、血量和热身战不变。结果：不冲刺的键盘玩家在 550 ms 反应下 20 局全胜、650 ms 下 18 局胜，900 ms 起会输；会冲刺的玩家 900 ms 仍能赢，1100 ms 起全输；从不躲避仍然会输。新的平衡测试固定了这些结论。是否解决问题，需要这位朋友再试一次。
 
 The boss's rattle and hop warnings are now 1050 → 1000 → 950 ms by stage (were 750–850 ms), and the rattle's radius is 2.6 (was 2.8); other moves, HP and the warm-ups are unchanged. A keyboard player who never dashes now wins all 20 runs at 550 ms reactions and 18 at 650 ms, and loses from 900 ms; one who dashes still wins at 900 ms and loses every run from 1100 ms; never dodging still loses. New balance tests pin these down. Whether this fixes it needs the friend to try again.
+
+第 2 条：售货机的战斗一开始就铺满整个浏览器窗口（开战前的说明仍在原来的面板里）。售货机的血量是横跨顶部的长条，旁边是形态名、「简化显示」和「暂停」；玩家的耐心是角色头顶的一排格子（3D 和俯视 2D 都有，最后一格变红）；摇杆和按钮浮在左右下角。暂停菜单里有声音开关和重开，因为页面的标题栏被盖住了。全屏期间后面的页面隐藏，左边的 3D 立绘停止绘制（手机上不再同时绘制两个 WebGL 画面）。竖屏手机上镜头跟得更近。打印机关卡的三通道战斗没有改。
+
+Point 2: a vending machine fight now fills the whole browser window as soon as it starts (the briefing before each fight still shows in its panel). The machine's health is a long bar across the top, next to the stage name, "简化显示" and "暂停"; the player's patience is a row of segments over the character's head (in 3D and in the top-down 2D view; the last one turns red); the stick and buttons float in the bottom corners. The pause menu offers sound and restart, since the page's title bar is covered. Meanwhile the page behind is hidden and its 3D portrait stops drawing (a phone no longer draws two WebGL views at once). On a portrait phone the camera follows more closely. The printer's lane fights are unchanged.

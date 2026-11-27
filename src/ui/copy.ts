@@ -132,6 +132,7 @@ export const UI = {
   // Open-arena fights (boss #2)
   arenaKeyboardHint: '键位：WASD/方向键 移动 · J 攻击 · K/空格 冲刺 · Esc 暂停 · R 重开',
   arenaFloor: '战斗场地',
+  arenaSimple: '简化显示',
   arenaControls: '移动与技能',
   arenaStick: '移动摇杆：按住后朝想走的方向拖动',
   arenaWarn: {
