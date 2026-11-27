@@ -43,7 +43,12 @@ export interface DrawOptions {
   height: number;
   /** Whether to animate pulses (off for reduced motion). */
   motion: boolean;
+  /** The player's patience, drawn as a segmented bar above them (the level's, not this fight's). */
+  patience?: { value: number; max: number };
 }
+
+/** Colours of the patience bar over the player (shared with the 3D view). */
+export const PATIENCE_BAR = { full: '#5ee0a0', last: '#ff5b5b', empty: '#3a4256', back: '#060a14' } as const;
 
 export function drawArena(ctx: CanvasRenderingContext2D, def: ArenaFightDefinition, s: ArenaState, o: DrawOptions): void {
   const { halfW, halfH } = def.floor;
@@ -178,6 +183,23 @@ export function drawArena(ctx: CanvasRenderingContext2D, def: ArenaFightDefiniti
   ctx.lineTo(px + Math.cos(-s.facing) * pr, py + Math.sin(-s.facing) * pr);
   ctx.stroke();
   ctx.globalAlpha = 1;
+
+  // Patience over the player's head: one segment per point, red on the last one.
+  if (o.patience && o.patience.max > 0) {
+    const { value, max } = o.patience;
+    const segW = Math.max(6, scale * 0.24);
+    const gap = Math.max(2, segW * 0.2);
+    const h = Math.max(5, scale * 0.13);
+    const w = max * segW + (max - 1) * gap;
+    const x0 = px - w / 2;
+    const y0 = py - pr - h - Math.max(6, scale * 0.25);
+    ctx.fillStyle = PATIENCE_BAR.back;
+    ctx.fillRect(x0 - gap, y0 - gap, w + 2 * gap, h + 2 * gap);
+    for (let i = 0; i < max; i++) {
+      ctx.fillStyle = i < value ? (value === 1 ? PATIENCE_BAR.last : PATIENCE_BAR.full) : PATIENCE_BAR.empty;
+      ctx.fillRect(x0 + i * (segW + gap), y0, segW, h);
+    }
+  }
 
   // A red edge for a moment after being hit.
   if (invulnerable && t - (s.invulnerableUntil - ARENA_RULES.invulnerableMs) < 250) {

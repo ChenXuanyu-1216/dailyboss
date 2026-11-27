@@ -23,10 +23,12 @@ interface Props {
    * follows it, so one "简化显示" toggle governs every 3D view on the page.
    */
   onRender3DChange?: (on3D: boolean) => void;
+  /** The scene is covered (the full-window arena fight): the 3D view stops drawing meanwhile. */
+  paused?: boolean;
 }
 
 /** Chooses between the registered 3D scene and the simplified display. Owns no game rules. */
-export function SceneHost({ sceneId, sceneProps, statusText, onRender3DChange }: Props) {
+export function SceneHost({ sceneId, sceneProps, statusText, onRender3DChange, paused = false }: Props) {
   const [mode, setMode] = useState<RenderMode>(initialRenderMode);
   const [failure, setFailure] = useState<Failure>(() => (probeWebGL().webgl ? null : 'unsupported'));
   const [attempt, setAttempt] = useState(0);
@@ -60,7 +62,7 @@ export function SceneHost({ sceneId, sceneProps, statusText, onRender3DChange }:
           <SceneErrorBoundary key={attempt} onError={onError} fallback={fallback}>
             <Suspense fallback={fallback}>
               <div className="scene__canvas" role="img" aria-label={`打印机 3D 场景：${statusText}`}>
-                <Scene {...sceneProps} onContextLost={onContextLost} />
+                <Scene {...sceneProps} onContextLost={onContextLost} paused={paused} />
               </div>
             </Suspense>
           </SceneErrorBoundary>

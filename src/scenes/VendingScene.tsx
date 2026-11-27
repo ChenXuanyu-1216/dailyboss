@@ -86,9 +86,9 @@ function Portrait(props: SceneProps) {
   );
 }
 
-export default function VendingScene({ onContextLost, ...props }: Scene3DProps) {
+export default function VendingScene({ onContextLost, paused, ...props }: Scene3DProps) {
   return (
-    <SceneCanvas reducedMotion={props.reducedMotion} onContextLost={onContextLost}>
+    <SceneCanvas reducedMotion={props.reducedMotion} onContextLost={onContextLost} paused={paused}>
       <Portrait {...props} />
     </SceneCanvas>
   );

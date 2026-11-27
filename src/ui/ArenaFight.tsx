@@ -9,7 +9,7 @@ import {
   type MouseEvent,
   type PointerEvent,
 } from 'react';
-import { flushSync } from 'react-dom';
+import { createPortal, flushSync } from 'react-dom';
 import {
   ARENA_ABILITY_IDS,
   ARENA_RULES,
@@ -75,6 +75,22 @@ interface Props {
   onHealth: (health: number) => void;
   /** Every frame's events and the fight time it covered (run statistics). */
   onFrame?: (events: readonly ArenaEvent[], dtMs: number) => void;
+  /** The level's patience, drawn as a bar over the player. */
+  patience?: number;
+  maxPatience?: number;
+  /** The machine's name over the long health bar in the full-window view. */
+  enemyName?: string;
+  /**
+   * Where a started fight is drawn over the whole window (the app root). Without it the fight
+   * stays in its panel. The briefing before each fight always shows in the panel.
+   */
+  fullTarget?: HTMLElement | null;
+  /** Reports whether the fight fills the window (the page behind it is then hidden). */
+  onFullChange?: (full: boolean) => void;
+  /** Sound and restart, offered in the pause menu while the page's own buttons are covered. */
+  soundOn?: boolean;
+  onToggleSound?: () => void;
+  onRestart?: () => void;
 }
 
 type Dir = 'up' | 'down' | 'left' | 'right';
@@ -157,7 +173,25 @@ function tacticalCue(before: ArenaState, after: ArenaState, fight: ArenaFightDef
  * scaled in assist mode) and the keyboard; the rules live in src/game/arena.ts. Reports hits,
  * the win and HP changes up, exactly like FightArena does for lane fights.
  */
-export function ArenaFight({ fight, seed, assist, render3D = false, isBoss, onHit, onWon, onHealth, onFrame }: Props) {
+export function ArenaFight({
+  fight,
+  seed,
+  assist,
+  render3D = false,
+  isBoss,
+  onHit,
+  onWon,
+  onHealth,
+  onFrame,
+  patience,
+  maxPatience,
+  enemyName,
+  fullTarget,
+  onFullChange,
+  soundOn,
+  onToggleSound,
+  onRestart,
+}: Props) {
   const [view, setView] = useState<ArenaState>(() => createArena(fight, seed));
   const [started, setStarted] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -167,7 +201,9 @@ export function ArenaFight({ fight, seed, assist, render3D = false, isBoss, onHi
   const [canvas, setCanvas] = useState<HTMLCanvasElement | null>(null);
   const [failed3D, setFailed3D] = useState(false);
   const on3DFailed = useCallback(() => setFailed3D(true), []);
-  const use3D = render3D && !failed3D;
+  /** The fight's own "simplified display" switch (the page's one is covered while it fills the window). */
+  const [simple, setSimple] = useState(false);
+  const use3D = render3D && !failed3D && !simple;
   /** Effects detail for the 3D view: full (GPU), lite (software rendering), off (reduced motion or ?fx=0). */
   const quality = useMemo(() => backdropMotion(reducedMotion), [reducedMotion]);
   /** Simulation steps the 3D view has not drawn yet (it drains this for its effects). */
@@ -194,6 +230,16 @@ export function ArenaFight({ fight, seed, assist, render3D = false, isBoss, onHi
   callbacks.current = { onHit, onWon, onHealth, onFrame };
 
   const running = started && !paused && !view.won;
+  /** Once started, the fight fills the browser window (until it ends and the page moves on). */
+  const full = started && !!fullTarget;
+  const fullChange = useRef(onFullChange);
+  fullChange.current = onFullChange;
+  useEffect(() => {
+    fullChange.current?.(full);
+    // Keyboard focus moves with the fight (Space must dash, not press a focused button).
+    if (full) rootRef.current?.focus({ preventScroll: true });
+    return () => fullChange.current?.(false);
+  }, [full]);
 
   const releaseAll = useCallback(() => {
     for (const set of Object.values(held.current)) set.clear();
@@ -206,8 +252,9 @@ export function ArenaFight({ fight, seed, assist, render3D = false, isBoss, onHi
     setStarted(true);
     setPaused(false);
     lastFrame.current = null;
-    rootRef.current?.scrollIntoView?.({ block: 'nearest' });
-  }, []);
+    // In its panel, bring the whole floor into view (the full-window view needs no scrolling).
+    if (!fullTarget) rootRef.current?.scrollIntoView?.({ block: 'nearest' });
+  }, [fullTarget]);
 
   const pause = useCallback(() => {
     releaseAll();
@@ -217,7 +264,8 @@ export function ArenaFight({ fight, seed, assist, render3D = false, isBoss, onHi
   const resume = useCallback(() => {
     lastFrame.current = null;
     setPaused(false);
-  }, []);
+    if (full) rootRef.current?.focus({ preventScroll: true });
+  }, [full]);
 
   useEffect(() => {
     if (!started) startRef.current?.focus();
@@ -245,9 +293,14 @@ export function ArenaFight({ fight, seed, assist, render3D = false, isBoss, onHi
         canvas.width = w;
         canvas.height = h;
       }
-      drawArena(ctx, fight, s, { width: w, height: h, motion: !reducedMotion });
+      drawArena(ctx, fight, s, {
+        width: w,
+        height: h,
+        motion: !reducedMotion,
+        patience: patience !== undefined && maxPatience ? { value: patience, max: maxPatience } : undefined,
+      });
     },
-    [fight, reducedMotion, canvas],
+    [fight, reducedMotion, canvas, patience, maxPatience],
   );
   useEffect(() => draw(view), [draw, view]);
   useEffect(() => {
@@ -396,11 +449,25 @@ export function ArenaFight({ fight, seed, assist, render3D = false, isBoss, onHi
     <canvas ref={setCanvas} className="arena__canvas" role="img" aria-label={UI.arenaFloor} data-testid="arena-canvas" />
   );
 
-  return (
+  const health = arenaHealth(fight, s);
+  const pauseButton = started && !s.won && (
+    <button
+      type="button"
+      className="btn btn--ghost btn--small fight__pause"
+      onClick={paused ? resume : pause}
+      aria-keyshortcuts="Escape"
+    >
+      {paused ? UI.fightResume : UI.fightPause}
+    </button>
+  );
+
+  const section = (
     <section
       ref={rootRef}
-      className="panel fight"
+      tabIndex={-1}
+      className={full ? 'panel fight fight--full' : 'panel fight'}
       aria-labelledby="fight-heading"
+      data-full={full || undefined}
       data-kind="arena"
       data-fight-id={fight.id}
       data-started={started || undefined}
@@ -415,6 +482,51 @@ export function ArenaFight({ fight, seed, assist, render3D = false, isBoss, onHi
       data-won={s.won || undefined}
       data-view={use3D ? '3d' : '2d'}
     >
+      {full ? (
+        // Full window: the machine's health as one long bar across the top, tools at the right.
+        <header className="arena-hud">
+          <div className="arena-hud__boss">
+            <div className="arena-hud__name">
+              {enemyName && <span className="arena-hud__enemy">{enemyName}</span>}
+              <h2 id="fight-heading" className="arena-hud__stage">
+                {stage?.title ?? UI.fightArena}
+              </h2>
+            </div>
+            <div
+              className="arena-hud__bar"
+              role="progressbar"
+              aria-label={fight.copy.progress}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(health * 100)}
+              data-testid="arena-boss-bar"
+            >
+              <span className="arena-hud__fill" style={{ transform: `scaleX(${health})` }} />
+            </div>
+          </div>
+          <div className="arena-hud__tools">
+            <button
+              type="button"
+              className="btn btn--ghost btn--small arena-hud__simple"
+              aria-pressed={!use3D}
+              disabled={!render3D || failed3D}
+              onClick={(event) => {
+                setSimple((v) => !v);
+                // Return pointer users to gameplay. Keyboard users can keep navigating the toolbar.
+                if (event.detail > 0) rootRef.current?.focus({ preventScroll: true });
+              }}
+            >
+              {UI.arenaSimple}
+            </button>
+            {pauseButton}
+          </div>
+          {patience !== undefined && maxPatience !== undefined && (
+            <p className="visually-hidden" data-testid="arena-patience">
+              {UI.patience} {patience} / {maxPatience}
+            </p>
+          )}
+        </header>
+      ) : (
       <header className="fight__head">
         <h2 id="fight-heading" className="panel__label">
           {stage?.title ?? UI.fightArena}
@@ -434,22 +546,18 @@ export function ArenaFight({ fight, seed, assist, render3D = false, isBoss, onHi
         )}
         {isBoss && (
           <span className="fight__hp" aria-hidden="true">
-            <span className="fight__hp-fill" style={{ transform: `scaleX(${arenaHealth(fight, s)})` }} />
+            <span className="fight__hp-fill" style={{ transform: `scaleX(${health})` }} />
           </span>
         )}
-        {started && !s.won && (
-          <button
-            type="button"
-            className="btn btn--ghost btn--small fight__pause"
-            onClick={paused ? resume : pause}
-            aria-keyshortcuts="Escape"
-          >
-            {paused ? UI.fightResume : UI.fightPause}
-          </button>
-        )}
+        {pauseButton}
       </header>
+      )}
 
-      <div className="fight__arena arena__floor" style={{ aspectRatio: ratio }} data-hurt={hurt || undefined}>
+      <div
+        className="fight__arena arena__floor"
+        style={full ? undefined : { aspectRatio: ratio }}
+        data-hurt={hurt || undefined}
+      >
         {use3D ? (
           <SceneErrorBoundary onError={on3DFailed} fallback={flat}>
             <Suspense fallback={flat}>
@@ -461,6 +569,9 @@ export function ArenaFight({ fight, seed, assist, render3D = false, isBoss, onHi
                   quality={quality}
                   reducedMotion={reducedMotion}
                   onContextLost={on3DFailed}
+                  patience={patience}
+                  maxPatience={maxPatience}
+                  fullWindow={full}
                 />
               </div>
             </Suspense>
@@ -540,6 +651,21 @@ export function ArenaFight({ fight, seed, assist, render3D = false, isBoss, onHi
                 Esc
               </kbd>
             </button>
+            {/* The page's title bar is covered in the full-window view: offer its buttons here. */}
+            {full && (onToggleSound || onRestart) && (
+              <div className="fight__paused-more">
+                {onToggleSound && (
+                  <button type="button" className="btn btn--ghost btn--small" aria-pressed={soundOn} onClick={onToggleSound}>
+                    {soundOn ? UI.soundOn : UI.soundOff}
+                  </button>
+                )}
+                {onRestart && (
+                  <button type="button" className="btn btn--ghost btn--small" onClick={onRestart} aria-keyshortcuts="R">
+                    {UI.restartShort}
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -593,4 +719,7 @@ export function ArenaFight({ fight, seed, assist, render3D = false, isBoss, onHi
       </p>
     </section>
   );
+
+  // Started: drawn over the whole window, outside the page's (shaking, filtered) window frame.
+  return full && fullTarget ? createPortal(section, fullTarget) : section;
 }
