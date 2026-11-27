@@ -264,7 +264,8 @@ export function ArenaFight({
   const resume = useCallback(() => {
     lastFrame.current = null;
     setPaused(false);
-  }, []);
+    if (full) rootRef.current?.focus({ preventScroll: true });
+  }, [full]);
 
   useEffect(() => {
     if (!started) startRef.current?.focus();
@@ -509,7 +510,11 @@ export function ArenaFight({
               className="btn btn--ghost btn--small arena-hud__simple"
               aria-pressed={!use3D}
               disabled={!render3D || failed3D}
-              onClick={() => setSimple((v) => !v)}
+              onClick={(event) => {
+                setSimple((v) => !v);
+                // Return pointer users to gameplay. Keyboard users can keep navigating the toolbar.
+                if (event.detail > 0) rootRef.current?.focus({ preventScroll: true });
+              }}
             >
               {UI.arenaSimple}
             </button>

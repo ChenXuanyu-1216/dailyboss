@@ -120,6 +120,8 @@ test.describe('vending machine (open arena)', () => {
     await expect(game.fight).toHaveAttribute('data-view', '2d');
     await expect(page.getByTestId('arena-canvas')).toBeVisible();
     await expect(page.getByTestId('arena-3d')).toHaveCount(0);
+    await page.keyboard.press('Space');
+    await expect(game.fight).toHaveAttribute('data-view', '2d');
   });
 });
 
@@ -218,6 +220,31 @@ test.describe('vending machine, whole level', () => {
 });
 
 test.describe('vending machine fills the window once a fight starts', () => {
+  test('Space dashes after resuming from the toolbar', async ({ game, page }) => {
+    const now = Date.now();
+    await page.addInitScript(() => {
+      localStorage.setItem('dailyboss:records:vending-machine', JSON.stringify({ reachedBoss: true }));
+    });
+    await page.clock.install({ time: now });
+    await page.goto(`./?${LEVEL}&fx=0`);
+    await page.getByRole('button', { name: 'Boss 练习' }).click();
+    await page.clock.pauseAt(now + 60_000);
+    await game.fightStart.click();
+    await expect(game.fight).toHaveAttribute('data-fight-id', 'vending-boss');
+
+    const toolbar = page.locator('.arena-hud');
+    await toolbar.getByRole('button', { name: '暂停' }).click();
+    await toolbar.getByRole('button', { name: '继续' }).click();
+    await expect(game.fight).not.toHaveAttribute('data-paused');
+
+    const dash = game.fight.locator('[data-ability="dash"]');
+    await expect(dash).toHaveAttribute('data-ready', 'true');
+    await page.keyboard.press('Space');
+    await page.clock.runFor(50);
+    await expect(dash).not.toHaveAttribute('data-ready');
+    await expect(game.fight).not.toHaveAttribute('data-paused');
+  });
+
   test('boss bar across the top, patience over the player, the page behind hidden', async ({ game, page }) => {
     await game.openPaused(LEVEL);
     // The briefing still shows in its panel, with the page around it.
